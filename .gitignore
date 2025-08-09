@@ -31,3 +31,26 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local runtime configuration ###
+.env
+.env.*
+!.env.example
+application-local.yaml
+application-*-local.yaml
+src/main/resources/application-local.yaml
+src/main/resources/application-*-local.yaml
+
+### Runtime output ###
+logs/
+*.log
+output/
+tmp/
+
+### Load-test raw output ###
+artifacts/**/*-raw.csv
+artifacts/**/*.json
+artifacts/**/*.txt
+
+### Personal documents ###
+*.pdf
