@@ -66,6 +66,11 @@
             <artifactId>redisson</artifactId>
             <version>3.17.7</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>2.9.3</version>
+        </dependency>
     </dependencies>
 
     <build>
