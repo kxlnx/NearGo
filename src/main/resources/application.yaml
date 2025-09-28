@@ -20,6 +20,17 @@ spring:
         time-between-eviction-runs: 10s
   jackson:
     default-property-inclusion: non_null # JSON处理时忽略非空字段
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+  producer:
+    group: ${ROCKETMQ_PRODUCER_GROUP:neargo-seckill-producer}
+    send-message-timeout: 3000
+seckill:
+  consumer:
+    enabled: ${SECKILL_CONSUMER_ENABLED:true}
+  rocketmq:
+    order-topic: ${SECKILL_ORDER_TOPIC:seckill-order-topic}
+    order-consumer-group: ${SECKILL_ORDER_CONSUMER_GROUP:seckill-order-consumer}
 mybatis-plus:
   type-aliases-package: com.hmdp.entity # 别名扫描包
 logging:

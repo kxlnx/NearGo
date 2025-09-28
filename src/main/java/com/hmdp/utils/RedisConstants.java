@@ -19,6 +19,9 @@ public class RedisConstants {
     public static final Long CACHE_VOUCHER_LIST_TTL = 30L;
 
     public static final String SECKILL_STOCK_KEY = "seckill:stock:";
+    public static final String SECKILL_ORDER_KEY = "seckill:order:";
+    /** Redis Hash：记录一次 Redis 预扣对应的订单、用户和预扣时间，供补偿任务使用。 */
+    public static final String SECKILL_RESERVATION_KEY = "seckill:reservation:";
     public static final String BLOG_LIKED_KEY = "blog:liked:";
     public static final String FEED_KEY = "feed:";
     public static final String SHOP_GEO_KEY = "shop:geo:";
