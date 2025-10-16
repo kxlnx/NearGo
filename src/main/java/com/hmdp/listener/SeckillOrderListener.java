@@ -8,12 +8,15 @@ import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 
-/** RocketMQ 秒杀订单消费者：异步完成数据库订单落库。 */
+/** RocketMQ 秒杀订单消费者：事务落库成功后发送延迟关单消息。 */
 @Component
 @Slf4j
 @ConditionalOnProperty(prefix = "seckill.consumer", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -26,10 +29,25 @@ import javax.annotation.Resource;
 public class SeckillOrderListener implements RocketMQListener<String> {
     @Resource
     private IVoucherOrderService voucherOrderService;
+    @Resource
+    private RocketMQTemplate rocketMQTemplate;
+
+    @Value("${seckill.rocketmq.timeout-topic:order-timeout-topic}")
+    private String timeoutTopic;
+
+    @Value("${seckill.rocketmq.timeout-delay-level:5}")
+    private int timeoutDelayLevel;
+
     @Override
     public void onMessage(String message) {
         VoucherOrder order = JSONUtil.toBean(message, VoucherOrder.class);
         voucherOrderService.createVoucherOrder(order);
+        rocketMQTemplate.syncSend(
+                timeoutTopic,
+                MessageBuilder.withPayload(String.valueOf(order.getId())).build(),
+                3000,
+                timeoutDelayLevel
+        );
         log.info("RocketMQ 秒杀订单处理完成 orderId={}, voucherId={}", order.getId(), order.getVoucherId());
     }
 }

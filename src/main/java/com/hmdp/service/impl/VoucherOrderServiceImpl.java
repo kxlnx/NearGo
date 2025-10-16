@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -39,6 +40,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
     private static final DefaultRedisScript<Long> COMPENSATE_SCRIPT;
+    private static final DefaultRedisScript<Long> RELEASE_SCRIPT;
 
     static {
         SECKILL_SCRIPT = new DefaultRedisScript<>();
@@ -49,6 +51,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         COMPENSATE_SCRIPT.setLocation(new ClassPathResource("seckill_compensate.lua"));
         COMPENSATE_SCRIPT.setResultType(Long.class);
 
+        RELEASE_SCRIPT = new DefaultRedisScript<>();
+        RELEASE_SCRIPT.setLocation(new ClassPathResource("seckill_release.lua"));
+        RELEASE_SCRIPT.setResultType(Long.class);
     }
 
     @Resource
@@ -186,6 +191,56 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .setVoucherId(voucherId);
         save(order);
         return Result.ok(order.getId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean payCallback(Long orderId) {
+        return update(new LambdaUpdateWrapper<VoucherOrder>()
+                .eq(VoucherOrder::getId, orderId)
+                .eq(VoucherOrder::getStatus, 1)
+                .set(VoucherOrder::getStatus, 2)
+                .set(VoucherOrder::getPayTime, LocalDateTime.now()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean closeTimeoutOrder(Long orderId) {
+        VoucherOrder order = getById(orderId);
+        if (order == null) {
+            return false;
+        }
+        boolean closed = update(new LambdaUpdateWrapper<VoucherOrder>()
+                .eq(VoucherOrder::getId, orderId)
+                .eq(VoucherOrder::getStatus, 1)
+                .set(VoucherOrder::getStatus, 4));
+        if (!closed) {
+            return false;
+        }
+
+        boolean restored = seckillVoucherService.update(
+                new LambdaUpdateWrapper<SeckillVoucher>()
+                        .eq(SeckillVoucher::getVoucherId, order.getVoucherId())
+                        .setSql("stock = stock + 1")
+        );
+        if (!restored) {
+            throw new IllegalStateException("订单已关闭但库存释放失败");
+        }
+
+        // 数据库关单成功后同步释放 Redis 预扣资格；脚本保证重复关单不会重复回补库存。
+        Long released = stringRedisTemplate.execute(
+                RELEASE_SCRIPT,
+                Arrays.asList(
+                        RedisConstants.SECKILL_STOCK_KEY + order.getVoucherId(),
+                        RedisConstants.SECKILL_ORDER_KEY + order.getVoucherId(),
+                        reservationKey(order.getVoucherId(), order.getUserId())
+                ),
+                order.getUserId().toString()
+        );
+        if (released == null) {
+            throw new IllegalStateException("订单已关闭但 Redis 预扣释放失败");
+        }
+        return true;
     }
 
     private static String reservationKey(Long voucherId, Long userId) {

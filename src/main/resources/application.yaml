@@ -31,6 +31,9 @@ seckill:
   rocketmq:
     order-topic: ${SECKILL_ORDER_TOPIC:seckill-order-topic}
     order-consumer-group: ${SECKILL_ORDER_CONSUMER_GROUP:seckill-order-consumer}
+    timeout-topic: ${ORDER_TIMEOUT_TOPIC:order-timeout-topic}
+    timeout-consumer-group: ${ORDER_TIMEOUT_CONSUMER_GROUP:order-timeout-consumer}
+    timeout-delay-level: ${ORDER_TIMEOUT_DELAY_LEVEL:5}
 mybatis-plus:
   type-aliases-package: com.hmdp.entity # 别名扫描包
 logging:

@@ -27,4 +27,18 @@ public class VoucherOrderController {
     public Result seckillVoucher(@PathVariable("id") Long voucherId) {
         return voucherOrderService.seckillVoucher(voucherId);
     }
+
+    @PostMapping("pay/callback/{orderId}")
+    public Result payCallback(@PathVariable("orderId") Long orderId) {
+        return voucherOrderService.payCallback(orderId)
+                ? Result.ok()
+                : Result.fail("支付回调处理失败或订单状态已变更");
+    }
+
+    @PostMapping("close/{orderId}")
+    public Result closeTimeoutOrder(@PathVariable("orderId") Long orderId) {
+        return voucherOrderService.closeTimeoutOrder(orderId)
+                ? Result.ok()
+                : Result.fail("关单处理失败或订单状态已变更");
+    }
 }
