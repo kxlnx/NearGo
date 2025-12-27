@@ -36,7 +36,11 @@ public class LoginTest {
      */
     @Test
     public void testGenerateUser(){
-        Long phone=17600000000L;
+        String phoneStart = System.getenv("LOAD_TEST_PHONE_START");
+        if (phoneStart == null || phoneStart.trim().isEmpty()) {
+            throw new IllegalStateException("请通过 LOAD_TEST_PHONE_START 提供压测起始手机号");
+        }
+        Long phone = Long.parseLong(phoneStart);
         for (int i = 0; i < 1000; i++) {
             User user = new User();
             user.setPhone(phone.toString());
@@ -58,7 +62,11 @@ public class LoginTest {
         LambdaQueryWrapper<User> userLambdaQueryWrapper = new LambdaQueryWrapper<>();
         userLambdaQueryWrapper.gt(true,User::getId,1011L);
         List<User> users = userMapper.selectList(userLambdaQueryWrapper);
-        File tokens=new File("D:\\Downloads\\apache-jmeter-5.5\\test\\tokens.txt");
+        String tokenFile = System.getenv("LOAD_TEST_TOKEN_FILE");
+        if (tokenFile == null || tokenFile.trim().isEmpty()) {
+            throw new IllegalStateException("请通过 LOAD_TEST_TOKEN_FILE 提供 Token 输出路径");
+        }
+        File tokens = new File(tokenFile);
         FileOutputStream fileOutputStream = new FileOutputStream(tokens);
         for (User user : users) {
             String token = UUID.randomUUID().toString(true);
