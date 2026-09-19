@@ -1,6 +1,6 @@
 # 🏪 NearGo——同城生活服务平台
 
-> 一个以本地生活业务为载体的高并发后端实践项目。README 不只罗列技术名词，而是说明每项优化解决了什么问题、为什么采用该方案、代码如何执行、有哪些边界，以及面试中可能被继续追问什么。
+> 一个以本地生活业务为载体的高并发后端实践项目。
 
 [![Java](https://img.shields.io/badge/Java-8%2B-orange)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.4-brightgreen)](https://spring.io/projects/spring-boot)
