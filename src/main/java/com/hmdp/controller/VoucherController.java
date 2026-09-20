@@ -67,4 +67,14 @@ public class VoucherController {
     public Result queryVoucherOfShop(@PathVariable("shopId") Long shopId) {
        return voucherService.queryVoucherOfShop(shopId);
     }
+
+    /**
+     * 查询秒杀优惠券详情页（Caffeine 5s → Redis 30s → MySQL 两级缓存）
+     * @param voucherId 优惠券id
+     * @return 秒杀券详情
+     */
+    @GetMapping("/seckill/{id}")
+    public Result querySeckillVoucherDetail(@PathVariable("id") Long voucherId) {
+        return voucherService.querySeckillVoucherDetail(voucherId);
+    }
 }

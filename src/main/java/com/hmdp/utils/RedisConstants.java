@@ -10,6 +10,8 @@ public class RedisConstants {
 
     public static final Long CACHE_SHOP_TTL = 30L;
     public static final String CACHE_SHOP_KEY = "cache:shop:";
+    /** 逻辑过期 Key 的物理 TTL 兜底（小时）：防止长期无人访问的 Key 永不过期、无界占用内存。 */
+    public static final Long LOGICAL_EXPIRE_FALLBACK_TTL = 24L;
 
     public static final String LOCK_SHOP_KEY = "lock:shop:";
     public static final Long LOCK_SHOP_TTL = 10L;
@@ -17,6 +19,9 @@ public class RedisConstants {
     public static final String CACHE_TYPE_KEY = "cache:type";
     public static final String CACHE_VOUCHER_LIST_KEY = "cache:voucher:list:";
     public static final Long CACHE_VOUCHER_LIST_TTL = 30L;
+
+    public static final String CACHE_SECKILL_VOUCHER_KEY = "cache:seckill:voucher:";
+    public static final Long CACHE_SECKILL_VOUCHER_TTL = 30L;
 
     public static final String SECKILL_STOCK_KEY = "seckill:stock:";
     public static final String SECKILL_ORDER_KEY = "seckill:order:";
