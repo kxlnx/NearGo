@@ -42,7 +42,7 @@ xxl:
   job:
     admin:
       addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8080/xxl-job-admin}
-      accessToken: ${XXL_JOB_ACCESS_TOKEN:}
+      accessToken: ${XXL_JOB_ACCESS_TOKEN:default_token}
     executor:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:neargo-executor}
       address: ${XXL_JOB_EXECUTOR_ADDRESS:}
