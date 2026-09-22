@@ -61,7 +61,10 @@ public class CacheClient {
         redisData.setData(value);
         redisData.setExpireTime(LocalDateTime.now().plusSeconds(unit.toSeconds(time)));
         //存入redis
-        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
+        // 逻辑过期判断仍靠 value 里的 expireTime；这里再给 Key 一个物理 TTL 兜底，
+        // 防止长期无人访问的 Key 永不过期、无界占用内存（物理过期后走"未命中回填"路径）
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData),
+                LOGICAL_EXPIRE_FALLBACK_TTL, TimeUnit.HOURS);
     }
 
     /**
@@ -123,10 +126,21 @@ public class CacheClient {
         String key = keyPrefix + id;
         //从redis中查询
         String json = stringRedisTemplate.opsForValue().get(key);
-        //判断是否存在
-        if (StringUtils.isEmpty(json)) {
-            //不存在返回空
+        //命中空值缓存：数据库确认过这个 ID 不存在，直接返回（防穿透）
+        if (json != null && json.isEmpty()) {
             return null;
+        }
+        //Key 完全不存在：缓存未预热（或负缓存已过期），查一次库并回填
+        if (json == null) {
+            R dbResult = dbFallback.apply(id);
+            if (dbResult == null) {
+                //数据库也没有：写空值缓存（短 TTL），防止同一个不存在的 ID 反复穿透
+                this.set(key, "", CACHE_NULL_TTL, TimeUnit.SECONDS);
+                return null;
+            }
+            //数据库有：按逻辑过期格式写入，下次请求直接走下面的逻辑过期流程
+            this.setWithLogicalExpire(key, dbResult, time, unit);
+            return dbResult;
         }
         //命中 反序列化
         RedisData redisData = JSONUtil.toBean(json, RedisData.class);
