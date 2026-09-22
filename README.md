@@ -139,7 +139,7 @@ WHERE voucher_id = ? AND stock > 0;
 
 ### 5. 发送 RocketMQ 失败怎么办
 
-Lua 预扣成功后，Java 使用 `syncSend` 等待 Broker 确认。若发送明确失败，则执行 [seckill_compensate.lua](src/main/resources/seckill_compensate.lua)：
+Lua 预扣成功后，Java 使用 `syncSend` 等待 Broker 确认。若发送明确失败，则执行 [seckill_rollback.lua](src/main/resources/seckill_rollback.lua)：
 
 - 从已下单用户集合移除当前用户；
 - Redis 库存加一；
@@ -652,8 +652,7 @@ src/main/java/com/hmdp
 src/main/resources
 ├── mapper
 ├── seckill.lua                # 秒杀预扣
-├── seckill_compensate.lua     # 发送失败补偿
-├── seckill_release.lua        # 关单/对账释放
+├── seckill_rollback.lua        # 预扣回滚：发送失败补偿 / 关单释放 / 对账释放（共用）
 └── sliding_window.lua         # 滑动窗口限流
 
 docs

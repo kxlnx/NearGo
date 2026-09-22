@@ -39,21 +39,17 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         implements IVoucherOrderService {
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
-    private static final DefaultRedisScript<Long> COMPENSATE_SCRIPT;
-    private static final DefaultRedisScript<Long> RELEASE_SCRIPT;
+    /** 发送失败补偿 / 关单释放 / 对账释放共用（逻辑相同，仅触发时机不同）。 */
+    private static final DefaultRedisScript<Long> ROLLBACK_SCRIPT;
 
     static {
         SECKILL_SCRIPT = new DefaultRedisScript<>();
         SECKILL_SCRIPT.setLocation(new ClassPathResource("seckill.lua"));
         SECKILL_SCRIPT.setResultType(Long.class);
 
-        COMPENSATE_SCRIPT = new DefaultRedisScript<>();
-        COMPENSATE_SCRIPT.setLocation(new ClassPathResource("seckill_compensate.lua"));
-        COMPENSATE_SCRIPT.setResultType(Long.class);
-
-        RELEASE_SCRIPT = new DefaultRedisScript<>();
-        RELEASE_SCRIPT.setLocation(new ClassPathResource("seckill_release.lua"));
-        RELEASE_SCRIPT.setResultType(Long.class);
+        ROLLBACK_SCRIPT = new DefaultRedisScript<>();
+        ROLLBACK_SCRIPT.setLocation(new ClassPathResource("seckill_rollback.lua"));
+        ROLLBACK_SCRIPT.setResultType(Long.class);
     }
 
     @Resource
@@ -108,7 +104,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             rocketMQTemplate.syncSend(orderTopic, JSONUtil.toJsonStr(order), 3000);
         } catch (Exception e) {
             Long compensated = stringRedisTemplate.execute(
-                    COMPENSATE_SCRIPT,
+                    ROLLBACK_SCRIPT,
                     Arrays.asList(
                             RedisConstants.SECKILL_STOCK_KEY + voucherId,
                             RedisConstants.SECKILL_ORDER_KEY + voucherId,
@@ -140,7 +136,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         try {
             long duplicated = count(new LambdaQueryWrapper<VoucherOrder>()
                     .eq(VoucherOrder::getUserId, userId)
-                    .eq(VoucherOrder::getVoucherId, voucherOrder.getVoucherId()));
+                    .eq(VoucherOrder::getVoucherId, voucherOrder.getVoucherId())
+                    .ne(VoucherOrder::getStatus, 4));   // 已取消订单不算重复：取消已释放库存与资格，允许重新抢
             if (duplicated > 0) {
                 log.info("重复消费用户券消息，按用户和券幂等返回 userId={}, voucherId={}",
                         userId, voucherOrder.getVoucherId());
@@ -229,7 +226,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         // 数据库关单成功后同步释放 Redis 预扣资格；脚本保证重复关单不会重复回补库存。
         Long released = stringRedisTemplate.execute(
-                RELEASE_SCRIPT,
+                    ROLLBACK_SCRIPT,
                 Arrays.asList(
                         RedisConstants.SECKILL_STOCK_KEY + order.getVoucherId(),
                         RedisConstants.SECKILL_ORDER_KEY + order.getVoucherId(),

@@ -32,7 +32,7 @@ flowchart LR
 | 秒杀订单消费 | `SeckillOrderListener` |
 | 延迟关单 | `OrderTimeoutListener` |
 | 支付与关单状态竞争 | `VoucherOrderServiceImpl#payCallback`、`closeTimeoutOrder` |
-| Redis 预扣幂等释放 | `src/main/resources/seckill_release.lua` |
+| Redis 预扣幂等释放 | `src/main/resources/seckill_rollback.lua` |
 | 定时对账和消息重投 | `SeckillReconciliationTask` |
 
 ## 一致性边界
