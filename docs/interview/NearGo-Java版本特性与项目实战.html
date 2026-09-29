@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NearGo Java 特性与项目实战</title>
+<style>
+:root { --sidebar-w: 340px; --line:#e3e6eb; --accent:#2f6feb; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; color:#24292f; line-height:1.75; background:#fff; }
+#sidebar { position:fixed; top:0; left:0; bottom:0; width:var(--sidebar-w); overflow:auto; border-right:1px solid var(--line); background:#fafbfc; padding:12px 10px 40px; font-size:13.5px; }
+.side-title { font-weight:700; font-size:15px; margin:6px 4px 8px; }
+#tocFilter { width:100%; padding:6px 8px; margin:0 0 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; }
+.side-tools { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.side-tools button { font-size:12px; padding:3px 8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
+.side-tools button:hover { border-color:var(--accent); color:var(--accent); }
+#toc, #toc ul { list-style:none; margin:0; padding-left:14px; }
+#toc { padding-left:0; }
+#toc li { margin:2px 0; }
+#toc details > summary { cursor:pointer; }
+#toc a { color:#333; text-decoration:none; display:inline-block; padding:1px 4px; border-radius:4px; }
+#toc a:hover { background:#eef3ff; color:var(--accent); }
+#toc a.active { background:#e4edff; color:var(--accent); font-weight:600; }
+#content { margin-left:var(--sidebar-w); padding:28px 48px 120px; max-width:1150px; }
+main h1 { font-size:26px; border-bottom:2px solid var(--line); padding-bottom:8px; }
+main h2 { font-size:22px; border-bottom:1px solid var(--line); padding-bottom:6px; margin-top:42px; }
+main h3 { font-size:18px; margin-top:30px; }
+main h4 { font-size:16px; margin-top:24px; }
+main table { border-collapse:collapse; margin:12px 0; max-width:100%; display:block; overflow-x:auto; }
+main th, main td { border:1px solid var(--line); padding:6px 10px; font-size:14px; }
+main th { background:#f6f8fa; }
+main blockquote { margin:12px 0; padding:6px 14px; border-left:4px solid #d0d7de; background:#f8f9fb; color:#444; }
+main code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-family:Consolas,"Courier New",monospace; font-size:13px; }
+main pre { position:relative; background:#f6f8fa; border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow:auto; }
+main pre code { background:none; padding:0; }
+.copy-btn { position:absolute; top:6px; right:8px; font-size:12px; padding:2px 8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; opacity:.75; }
+.copy-btn:hover { opacity:1; border-color:var(--accent); color:var(--accent); }
+.diagram-block { margin:14px 0; }
+.diagram-block details { border:1px dashed #c9d4e8; border-radius:8px; background:#fbfcff; }
+.diagram-summary { cursor:pointer; padding:8px 12px; color:var(--accent); font-weight:600; font-size:14px; user-select:none; }
+.mermaid-wrap { overflow-x:auto; padding:10px; }
+.mermaid { background:#fff; }
+.mermaid svg { max-width:100%; height:auto; }
+.mermaid-source { position:relative; background:#f6f8fa; border:1px solid var(--line); border-radius:6px; padding:10px 12px; overflow:auto; font-size:12.5px; }
+.mermaid-source code { background:none; padding:0; }
+#mermaidDrawer { position:fixed; top:0; right:0; bottom:0; width:640px; max-width:92vw; background:#fff; border-left:1px solid var(--line); box-shadow:-8px 0 24px rgba(0,0,0,.08); transform:translateX(102%); transition:transform .18s ease; overflow:auto; padding:14px 16px 80px; z-index:50; }
+#mermaidDrawer.open { transform:translateX(0); }
+.drawer-head { display:flex; justify-content:space-between; align-items:center; gap:8px; position:sticky; top:0; background:#fff; padding:6px 0 10px; border-bottom:1px solid var(--line); }
+.drawer-head h3 { margin:0; font-size:15px; }
+.drawer-head button { font-size:12.5px; padding:4px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
+.drawer-head button:hover { border-color:var(--accent); color:var(--accent); }
+.drawer-item h4 { margin:14px 0 6px; font-size:13.5px; color:#57606a; }
+main img { max-width:100%; }
+#content > .doc-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+#topTools { display:flex; gap:6px; }
+#topTools button { font-size:12.5px; padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; }
+#topTools button:hover { border-color:var(--accent); color:var(--accent); }
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="side-title">NearGo Java 特性与项目实战</div>
+  <input id="tocFilter" type="text" placeholder="过滤目录…">
+  <div class="side-tools">
+    <button id="expandToc">展开目录</button>
+    <button id="collapseToc">收起目录</button>
+    <button id="expandFigs">展开全部图</button>
+    <button id="collapseFigs">收起全部图</button>
+    <button id="mermaidBtn">mermaid 源码</button>
+  </div>
+  <ul id="toc"><li><details open><summary><a class="toc-link" href="#jdk-java-8-17-21">第一篇：JDK 特性部分（Java 8 / 17 / 21 新功能）</a></summary><ul><li><a class="toc-link" href="#1">1. 版本总览</a></li><li><details open><summary><a class="toc-link" href="#2-java-8">2. Java 8 新功能</a></summary><ul><li><a class="toc-link" href="#21-lambda">2.1 Lambda 表达式</a></li><li><a class="toc-link" href="#22">2.2 函数式接口</a></li><li><a class="toc-link" href="#23">2.3 方法引用</a></li><li><a class="toc-link" href="#24-stream-api">2.4 Stream API</a></li><li><a class="toc-link" href="#25-collectors">2.5 Collectors（收集器）</a></li><li><a class="toc-link" href="#26-optional">2.6 Optional（防空指针的容器）</a></li><li><a class="toc-link" href="#27-javatime-api">2.7 java.time（新的日期时间 API）</a></li><li><a class="toc-link" href="#28-default">2.8 接口默认方法（default）</a></li><li><a class="toc-link" href="#29-completablefuture">2.9 CompletableFuture（异步编排，详见第二篇）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#3-java-17">3. Java 17 新功能</a></summary><ul><li><a class="toc-link" href="#31-record">3.1 Record（不可变数据载体）</a></li><li><a class="toc-link" href="#32-text-block">3.2 Text Block（多行字符串）</a></li><li><a class="toc-link" href="#33-instanceof">3.3 instanceof 模式匹配</a></li><li><a class="toc-link" href="#34-sealed-class">3.4 Sealed Class（受限制的继承）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#4-java-21">4. Java 21 新功能</a></summary><ul><li><a class="toc-link" href="#41-virtual-threads">4.1 虚拟线程（Virtual Threads）</a></li><li><a class="toc-link" href="#42-switch">4.2 switch 模式匹配</a></li><li><a class="toc-link" href="#43-record-pattern">4.3 Record Pattern（记录解构）</a></li><li><a class="toc-link" href="#44-sequenced-collections">4.4 Sequenced Collections（统一首尾操作）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_1">第二篇：项目实战部分（重点：多线程与并发）</a></summary><ul><li><details open><summary><a class="toc-link" href="#1_1">1. 先说结论：为什么项目里“手写多线程”很少</a></summary><ul><li><a class="toc-link" href="#11">1.1 项目线程全景</a></li><li><a class="toc-link" href="#12">1.2 手写少的原因（设计决定，不是不会）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#2">2. 创建线程的几种方式（逐个讲清返回值与异常）</a></summary><ul><li><a class="toc-link" href="#21-thread">2.1 继承 Thread（不推荐）</a></li><li><a class="toc-link" href="#22-runnable">2.2 实现 Runnable（无返回值）——项目真实用法</a></li><li><a class="toc-link" href="#23-callable-futuretask">2.3 实现 Callable + FutureTask（有返回值、可抛受检异常）</a></li><li><a class="toc-link" href="#24-executorservice-threadpoolexecutor">2.4 线程池：ExecutorService / ThreadPoolExecutor（最常用的方式）</a></li><li><a class="toc-link" href="#25-execute-submit">2.5 提交任务：execute 与 submit（返回值与异常的区别）</a></li><li><a class="toc-link" href="#26-completablefuture">2.6 CompletableFuture（异步编排，项目未用）</a></li><li><a class="toc-link" href="#27-spring-async">2.7 Spring @Async（项目未用）</a></li><li><a class="toc-link" href="#28">2.8 创建方式总对比表</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#3">3. 返回值与异常——把区别说透</a></summary><ul><li><a class="toc-link" href="#31-runnable-vs-callable">3.1 Runnable vs Callable（同一件事两种写法）</a></li><li><a class="toc-link" href="#32-execute-vs-submit">3.2 execute vs submit（异常的去向是最大区别）</a></li><li><a class="toc-link" href="#33-futureget-vs-completablefuturejoin">3.3 Future.get vs CompletableFuture.join</a></li><li><a class="toc-link" href="#34">3.4 三个“异常被吞”的真实场景</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#4-neargo">4. NearGo 线程全景（结合代码）</a></summary><ul><li><a class="toc-link" href="#41-cache_rebuild_executor">4.1 唯一自建线程池：CACHE_REBUILD_EXECUTOR</a></li><li><a class="toc-link" href="#42">4.2 框架自带的线程（不是项目代码，但要说得出）</a></li><li><a class="toc-link" href="#43-threadlocaluserholder">4.3 ThreadLocal：UserHolder（并发上下文工具）</a></li></ul></details></li><li><a class="toc-link" href="#5">5. 哪些地方适合多线程、哪些不适合</a></li><li><details open><summary><a class="toc-link" href="#6">6. 并发安全数据结构（项目现状与扩展）</a></summary><ul><li><a class="toc-link" href="#concurrenthashmap">ConcurrentHashMap</a></li><li><a class="toc-link" href="#longadder">LongAdder（高并发计数更适合）</a></li><li><a class="toc-link" href="#blockingqueue">BlockingQueue</a></li><li><a class="toc-link" href="#copyonwritearraylist">CopyOnWriteArrayList</a></li></ul></details></li><li><a class="toc-link" href="#7-jvm">7. 为什么项目不用 JVM 锁</a></li><li><a class="toc-link" href="#8-rocketmq-consumer">8. RocketMQ Consumer 与多线程</a></li><li><a class="toc-link" href="#9-rocketmq">9. RocketMQ 消费重试与幂等</a></li><li><a class="toc-link" href="#10-outbox">10. 消息可靠投递：为什么不用 Outbox</a></li></ul></details></li></ul>
+</nav>
+<main id="content">
+  <div class="doc-head"><div></div><div id="topTools"><button id="topExpandFigs">展开全部图</button><button id="topCollapseFigs">收起全部图</button></div></div>
+  
+  <div align="center">
+
+# Java 8 常用特性与 NearGo（hmdp）项目实战
+
+</div>
+
+<blockquote>
+<p>目标：不只记“特性是什么”，而是知道它在 NearGo 项目里什么时候用、怎么用、哪些地方不要乱用。
+场景以 NearGo（黑马点评二次开发）为主：店铺缓存、优惠券秒杀、订单支付与超时关单、RocketMQ 异步、XXL-JOB 对账、Redis + Lua、Caffeine、滑动窗口限流。</p>
+<p><strong>重要前提：本项目是 JDK 8（<code>pom.xml</code>：<code>maven.compiler.source/target = 8</code>，Spring Boot 2.7.4）。</strong></p>
+<p>全文分两部分：
+<strong>第一篇：JDK 特性部分</strong> —— <strong>Java 8 / 17 / 21 的“新功能”逐个讲清</strong>（例子是通用代码，不绑定本项目）；
+<strong>第二篇：项目实战部分（重点多线程）</strong> —— 创建线程的方式、返回值与异常的区别、项目里真实的线程全景、为什么手写多线程少。</p>
+</blockquote>
+<hr />
+<h1 id="jdk-java-8-17-21">第一篇：JDK 特性部分（Java 8 / 17 / 21 新功能）</h1>
+<h2 id="1">1. 版本总览</h2>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>新增的关键功能</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Java 8</strong></td>
+<td>Lambda、函数式接口、方法引用、Stream、Collectors、Optional、java.time、接口 default 方法、CompletableFuture</td>
+<td>项目实际在用的版本</td>
+</tr>
+<tr>
+<td><strong>Java 17</strong></td>
+<td>Record、Text Block、instanceof 模式匹配、Sealed Class</td>
+<td>现代 Java 的稳定基建</td>
+</tr>
+<tr>
+<td><strong>Java 21</strong></td>
+<td>虚拟线程、switch 模式匹配、Record Pattern、Sequenced Collections</td>
+<td>高并发现代写法</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>本篇所有例子都是<strong>通用示例</strong>（用户、字符串、订单这类），不绑定具体项目；这些知识在 NearGo 里到底用了哪些、怎么用，见第二篇。</p>
+</blockquote>
+<hr />
+<h2 id="2-java-8">2. Java 8 新功能</h2>
+<h3 id="21-lambda">2.1 Lambda 表达式</h3>
+<p>Lambda 是 <strong>Java 8</strong> 引入的“把行为当成参数传”的语法。以前写匿名内部类：</p>
+<pre><code class="language-java">// 以前：匿名内部类
+list.sort(new Comparator&lt;String&gt;() {
+    @Override
+    public int compare(String a, String b) {
+        return a.compareTo(b);
+    }
+});
+</code></pre>
+<p>Java 8 之后：</p>
+<pre><code class="language-java">// Lambda
+list.sort((a, b) -&gt; a.compareTo(b));
+
+// 进一步：方法引用
+list.sort(String::compareTo);
+</code></pre>
+<p>要点：Lambda 必须有<strong>函数式接口</strong>（只有一个抽象方法的接口）作为目标类型。</p>
+<blockquote>
+<p>Lambda 最常见的搭档是 <strong>Stream</strong>：<code>filter / map / sorted</code> 这些<strong>中间操作</strong>的参数全部是函数式接口（详见 2.4）。</p>
+</blockquote>
+<h3 id="22">2.2 函数式接口</h3>
+<p>四大常用接口，最简单的理解方式：</p>
+<pre><code class="language-java">Predicate&lt;String&gt; notEmpty = s -&gt; !s.isEmpty();          // 判断：给我一个值，返回 true/false
+Function&lt;String, Integer&gt; length = String::length;       // 转换：String → Integer
+Consumer&lt;String&gt; printer = s -&gt; System.out.println(s);   // 消费：只进不出
+Supplier&lt;String&gt; supplier = () -&gt; &quot;hello&quot;;               // 提供：不进只出
+</code></pre>
+<p>也可以自己定义（加 <code>@FunctionalInterface</code> 后编译器会帮你检查）：</p>
+<pre><code class="language-java">@FunctionalInterface
+public interface Greeting {
+    String hello(String name);
+}
+
+Greeting g = name -&gt; &quot;你好，&quot; + name;
+g.hello(&quot;张三&quot;);
+</code></pre>
+<h3 id="23">2.3 方法引用</h3>
+<p>Lambda 的简写：当 Lambda 体只是“调用一个现成方法”时，可以写成方法引用。</p>
+<pre><code class="language-text">String::length            // 类::实例方法（入参当调用者）
+System.out::println       // 对象::实例方法
+User::getName             // 类::实例方法（入参是 User）
+ArrayList::new            // 构造器引用
+</code></pre>
+<pre><code class="language-java">list.forEach(System.out::println);       // 等价于 list.forEach(s -&gt; System.out.println(s))
+</code></pre>
+<h3 id="24-stream-api">2.4 Stream API</h3>
+<p>Stream 是对<strong>内存集合</strong>的声明式处理流水线：<code>集合 → stream() → 中间操作 → 终结操作</code>。</p>
+<pre><code class="language-java">List&lt;String&gt; names = List.of(&quot;张三&quot;, &quot;李四&quot;, &quot;王五&quot;, &quot;张三&quot;);
+
+List&lt;String&gt; result = names.stream()
+        .filter(n -&gt; n.startsWith(&quot;张&quot;))    // 过滤
+        .distinct()                         // 去重
+        .map(String::toUpperCase)           // 转换
+        .sorted()                           // 排序
+        .collect(Collectors.toList());      // 收集
+</code></pre>
+<p><strong>中间操作</strong>（返回的还是 Stream，可以继续链式调用，而且是“惰性”的）：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>作用</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filter</code></td>
+<td>筛选</td>
+<td><code>.filter(n -&gt; n.startsWith("张"))</code></td>
+</tr>
+<tr>
+<td><code>map</code></td>
+<td>一对一转换</td>
+<td><code>.map(String::toUpperCase)</code></td>
+</tr>
+<tr>
+<td><code>flatMap</code></td>
+<td>一对多拍平</td>
+<td><code>.flatMap(list -&gt; list.stream())</code></td>
+</tr>
+<tr>
+<td><code>distinct</code></td>
+<td>去重</td>
+<td><code>.distinct()</code></td>
+</tr>
+<tr>
+<td><code>sorted</code></td>
+<td>排序</td>
+<td><code>.sorted()</code> / <code>.sorted(Comparator.reverseOrder())</code></td>
+</tr>
+<tr>
+<td><code>limit / skip</code></td>
+<td>截断 / 跳过</td>
+<td><code>.limit(3)</code> / <code>.skip(1)</code></td>
+</tr>
+<tr>
+<td><code>peek</code></td>
+<td>偷看（调试用）</td>
+<td><code>.peek(System.out::println)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>终结操作</strong>（触发执行、产生结果；一条流只能终结一次）：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>作用</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>collect</code></td>
+<td>收集成集合</td>
+<td><code>.collect(Collectors.toList())</code></td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>计数</td>
+<td><code>.count()</code></td>
+</tr>
+<tr>
+<td><code>anyMatch / allMatch</code></td>
+<td>判断</td>
+<td><code>.anyMatch(n -&gt; n.isBlank())</code></td>
+</tr>
+<tr>
+<td><code>findFirst</code></td>
+<td>找第一个</td>
+<td><code>.findFirst()</code>（返回 Optional）</td>
+</tr>
+<tr>
+<td><code>forEach</code></td>
+<td>逐个消费</td>
+<td><code>.forEach(System.out::println)</code></td>
+</tr>
+<tr>
+<td><code>reduce</code></td>
+<td>聚合</td>
+<td><code>.reduce(0, Integer::sum)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>惰性求值（重点）：</strong> 中间操作只是“记下来”，<strong>不写终结操作就什么都不会执行</strong>：</p>
+<pre><code class="language-java">names.stream().filter(n -&gt; {
+    System.out.println(&quot;执行 filter：&quot; + n);   // 这行一次都不会打印
+    return n.startsWith(&quot;张&quot;);
+});
+// 没有终结操作 → 整条流根本没跑
+</code></pre>
+<p><strong>注意：</strong> <code>stream()</code> 默认还是单线程，<strong>不会天然变快</strong>；它的价值是表达清晰、少写循环。</p>
+<h3 id="25-collectors">2.5 Collectors（收集器）</h3>
+<pre><code class="language-java">// 1) 分组：按长度分组
+Map&lt;Integer, List&lt;String&gt;&gt; byLength = names.stream()
+        .collect(Collectors.groupingBy(String::length));
+
+// 2) 分组后计数
+Map&lt;Integer, Long&gt; countByLength = names.stream()
+        .collect(Collectors.groupingBy(String::length, Collectors.counting()));
+
+// 3) 转 Map（出现重复 key 必须给合并函数，否则抛异常）
+Map&lt;Integer, String&gt; map = names.stream()
+        .collect(Collectors.toMap(String::length, Function.identity(), (a, b) -&gt; a));
+</code></pre>
+<blockquote>
+<p>数据在数据库里时，优先让 SQL <code>GROUP BY</code> 做，而不是查出来再在 Java 里分组。</p>
+</blockquote>
+<h3 id="26-optional">2.6 Optional（防空指针的容器）</h3>
+<pre><code class="language-java">// 以前
+User user = userMap.get(id);
+if (user == null) {
+    throw new IllegalArgumentException(&quot;用户不存在&quot;);
+}
+
+// Java 8
+User user = Optional.ofNullable(userMap.get(id))
+        .orElseThrow(() -&gt; new IllegalArgumentException(&quot;用户不存在&quot;));
+</code></pre>
+<p><code>orElse</code> 与 <code>orElseGet</code> 的区别：</p>
+<pre><code class="language-java">optional.orElse(loadFromDb());        // 不管有没有值，loadFromDb() 都会执行（可能白查一次库）
+optional.orElseGet(this::loadFromDb); // 只有为空才执行
+</code></pre>
+<h3 id="27-javatime-api">2.7 java.time（新的日期时间 API）</h3>
+<pre><code class="language-java">LocalDate today = LocalDate.now();                  // 日期
+LocalDateTime now = LocalDateTime.now();            // 日期 + 时间
+LocalDateTime after30s = now.plusSeconds(30);       // 加 30 秒
+Instant epoch = Instant.now();                      // 机器时间戳（适合存/传输）
+Duration d = Duration.between(now, after30s);       // 时间差
+</code></pre>
+<p>为什么不用老的 <code>Date / Calendar</code>：可变、线程不安全、API 反直觉。</p>
+<h3 id="28-default">2.8 接口默认方法（default）</h3>
+<p>Java 8 之前接口只能有抽象方法；Java 8 允许写默认实现（子类不强制重写）：</p>
+<pre><code class="language-java">public interface Animal {
+    void eat();
+
+    default void sleep() {          // 默认方法
+        System.out.println(&quot;zzz...&quot;);
+    }
+}
+</code></pre>
+<h3 id="29-completablefuture">2.9 CompletableFuture（异步编排，详见第二篇）</h3>
+<p>Java 8 新加的异步编程工具：</p>
+<pre><code class="language-java">CompletableFuture&lt;String&gt; f = CompletableFuture.supplyAsync(() -&gt; &quot;结果&quot;);
+f.thenApply(String::toUpperCase).thenAccept(System.out::println);
+</code></pre>
+<p>适合“多个独立 IO 并行 + 聚合”；线程模型、返回值与异常的处理见第二篇。</p>
+<hr />
+<h2 id="3-java-17">3. Java 17 新功能</h2>
+<h3 id="31-record">3.1 Record（不可变数据载体）</h3>
+<p>一行代码 = 构造器 + 访问器 + <code>equals/hashCode/toString</code>：</p>
+<pre><code class="language-java">public record User(Long id, String name) {}
+
+User u = new User(1L, &quot;张三&quot;);
+System.out.println(u.id());      // 访问器是 id()，不是 getId()
+System.out.println(u.name());
+</code></pre>
+<p>适合：DTO、接口响应、事件对象等“只表示一组数据”的场景；字段不可变，不适合需要 setter 的实体。</p>
+<h3 id="32-text-block">3.2 Text Block（多行字符串）</h3>
+<pre><code class="language-java">// 以前要拼接和转义
+String json = &quot;{\n&quot; +
+        &quot;  \&quot;name\&quot;: \&quot;张三\&quot;,\n&quot; +
+        &quot;  \&quot;age\&quot;: 18\n&quot; +
+        &quot;}&quot;;
+
+// Java 17
+String json = &quot;&quot;&quot;
+        {
+          &quot;name&quot;: &quot;张三&quot;,
+          &quot;age&quot;: 18
+        }
+        &quot;&quot;&quot;;
+</code></pre>
+<p>适合：SQL、JSON、HTML、测试数据。</p>
+<h3 id="33-instanceof">3.3 instanceof 模式匹配</h3>
+<pre><code class="language-java">// 以前：判断 + 手动强转
+if (obj instanceof String) {
+    String s = (String) obj;
+    System.out.println(s.length());
+}
+
+// Java 17：判断的同时声明变量
+if (obj instanceof String s) {
+    System.out.println(s.length());
+}
+</code></pre>
+<h3 id="34-sealed-class">3.4 Sealed Class（受限制的继承）</h3>
+<pre><code class="language-java">// 只允许 Circle 和 Square 实现这个接口，别人不能再扩展
+public sealed interface Shape permits Circle, Square {}
+
+public record Circle(double radius) implements Shape {}
+public record Square(double side) implements Shape {}
+</code></pre>
+<p>适合：固定的“事件/状态/命令”体系；配合模式匹配，编译器可以检查是否写全。</p>
+<hr />
+<h2 id="4-java-21">4. Java 21 新功能</h2>
+<h3 id="41-virtual-threads">4.1 虚拟线程（Virtual Threads）</h3>
+<pre><code class="language-java">// 方式一：直接启动
+Thread.startVirtualThread(() -&gt; System.out.println(&quot;hello&quot;));
+
+// 方式二：一个任务一个虚拟线程的执行器
+try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future&lt;String&gt; f = executor.submit(() -&gt; httpGet(&quot;https://example.com&quot;));
+    System.out.println(f.get());
+}
+</code></pre>
+<ul>
+<li>适合：<strong>大量阻塞 IO</strong>（HTTP、数据库、文件）——以前“一个请求一个平台线程”成本高（每个约 1MB 栈），虚拟线程由 JVM 调度、极轻量；</li>
+<li>不适合：CPU 密集任务（线程再多也不会凭空变快）。</li>
+</ul>
+<h3 id="42-switch">4.2 switch 模式匹配</h3>
+<pre><code class="language-java">String describe = switch (shape) {
+    case Circle c -&gt; &quot;圆，半径 &quot; + c.radius();
+    case Square s -&gt; &quot;方，边长 &quot; + s.side();
+    default       -&gt; &quot;未知形状&quot;;
+};
+</code></pre>
+<p>配合 Sealed 接口还能省掉 <code>default</code>（编译器知道你已经写全）。</p>
+<h3 id="43-record-pattern">4.3 Record Pattern（记录解构）</h3>
+<pre><code class="language-java">// 直接把 record 的字段“拆”出来用
+if (obj instanceof User(Long id, String name)) {
+    System.out.println(id + &quot; -&gt; &quot; + name);
+}
+</code></pre>
+<h3 id="44-sequenced-collections">4.4 Sequenced Collections（统一首尾操作）</h3>
+<pre><code class="language-java">list.getFirst();
+list.getLast();
+list.reversed();     // 反转视图
+</code></pre>
+<p>以前 <code>List / Deque / LinkedHashSet</code> 各有一套首尾 API，Java 21 统一成 <code>SequencedCollection</code> 接口。</p>
+<hr />
+<blockquote>
+<p>第一篇到这里：<strong>Java 8 / 17 / 21 各加了什么、怎么写、什么场景用</strong>就齐了。
+第二篇开始讲这些知识在 NearGo 项目里的落地——重点是<strong>多线程与并发</strong>。</p>
+</blockquote>
+<hr />
+<h1 id="_1">第二篇：项目实战部分（重点：多线程与并发）</h1>
+<h2 id="1_1">1. 先说结论：为什么项目里“手写多线程”很少</h2>
+<p><strong>先破除一个误解：项目并不是没有多线程，它一直多线程在跑，只是业务代码很少自己创建线程。</strong></p>
+<h3 id="11">1.1 项目线程全景</h3>
+<table>
+<thead>
+<tr>
+<th>分类</th>
+<th>线程</th>
+<th>谁创建的</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>手写</strong></td>
+<td><code>CACHE_REBUILD_EXECUTOR</code>（固定 10 线程，缓存异步重建）</td>
+<td>项目代码（CacheClient.java:183）</td>
+</tr>
+<tr>
+<td>手写（工具）</td>
+<td><code>UserHolder</code> 的 ThreadLocal（登录上下文）</td>
+<td>项目代码</td>
+</tr>
+<tr>
+<td>框架</td>
+<td>Tomcat 请求线程池（默认 max 200）</td>
+<td>Spring Boot</td>
+</tr>
+<tr>
+<td>框架</td>
+<td>RocketMQ 消费线程池（两个 Listener 都 <code>CONCURRENTLY</code>）</td>
+<td>RocketMQ</td>
+</tr>
+<tr>
+<td>框架</td>
+<td>Redisson 的 Netty event loop + 看门狗定时任务</td>
+<td>Redisson</td>
+</tr>
+<tr>
+<td>框架</td>
+<td>XXL-JOB 每个 JobHandler 一条 JobThread</td>
+<td>XXL-JOB</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12">1.2 手写少的原因（设计决定，不是不会）</h3>
+<p><strong>原因一：并发控制全部“下沉”到了共享组件，不在 JVM 里。</strong></p>
+<pre><code class="language-text">库存不超卖 / 一人一单    → Redis + Lua（原子执行）
+一人多单 / 重复消费       → MQ 消费端幂等（订单ID + 用户×券 + 锁）
+支付/关单竞争            → 数据库条件更新（乐观锁）
+缓存重建竞争             → Redis SETNX 互斥锁
+限流计数                 → Redis ZSet + Lua
+</code></pre>
+<p><code>synchronized</code>、并发容器只对<strong>单实例</strong>有效；项目是“多实例 + Redis + MySQL”形态，并发状态必须放在共享存储里，放在 JVM 内存里解决不了跨实例问题。</p>
+<p><strong>原因二：需要异步的地方选了 MQ，而不是线程池。</strong></p>
+<p>秒杀要“削峰 + 解耦”：线程池在接口里开线程做落库，服务一重启任务就丢、没法重试；MQ 有持久化、有重试、能跨实例消费——<strong>线程池能做的异步，MQ 做得更可靠</strong>。</p>
+<p><strong>原因三：请求级并发由 Tomcat 提供。</strong></p>
+<p>“一个 HTTP 请求一个线程”就是 Web 的并发模型，业务逻辑不需要再自己开线程；真正的例外只有缓存重建（请求线程不想等查库），所以才有了那一个线程池。</p>
+<p><strong>原因四：项目是 Redis 教学项目。</strong></p>
+<p>黑马点评聚焦缓存、秒杀、分布式锁，JUC 没有教学场景——不是做不到，是没用到。</p>
+<p><strong>面试口径一句话</strong>：“项目的并发问题不是靠 JVM 线程解决的——库存和一人一单用 Redis+Lua，重复下单用 MQ 幂等+Redisson 锁，状态竞争用数据库条件更新；唯一的自建线程池是缓存异步重建。因为多实例部署，JVM 锁解决不了跨实例问题。”</p>
+<hr />
+<h2 id="2">2. 创建线程的几种方式（逐个讲清返回值与异常）</h2>
+<h3 id="21-thread">2.1 继承 Thread（不推荐）</h3>
+<pre><code class="language-java">public class RebuildThread extends Thread {
+    @Override
+    public void run() {
+        // 查库 + 回写缓存
+    }
+}
+new RebuildThread().start();
+</code></pre>
+<p>问题：</p>
+<ol>
+<li>Java 单继承，继承了 Thread 就不能再继承别的类；</li>
+<li>任务和线程耦合，任务无法复用；</li>
+<li>每次 <code>new</code> 都要创建/销毁线程，成本高；</li>
+<li>没有池化、没有队列、没有拒绝策略——<strong>缓存重建如果用这种写法，流量一高就是线程爆炸</strong>。</li>
+</ol>
+<p>结论：项目不用；这类“提交任务给后台执行”的场景，正确姿势是 Runnable/Callable + 线程池。</p>
+<h3 id="22-runnable">2.2 实现 Runnable（无返回值）——项目真实用法</h3>
+<p>CacheClient 的缓存重建（<code>CacheClient.java:162-174</code>，这里用简化示意）：</p>
+<pre><code class="language-java">if (flag) {                                   // flag = 抢到锁的线程才负责重建
+    CACHE_REBUILD_EXECUTOR.submit(() -&gt; {     // 把任务丢给线程池，异步执行
+        try {
+            Shop shop = getShopFromDb(id);    // 1. 查数据库（慢操作）
+            saveShopToCache(key, shop);        // 2. 把新数据写回缓存
+        } catch (Exception e) {
+            throw new RuntimeException(e);    // Runnable 不能抛受检异常，只能包一层
+        } finally {
+            unLock(lockKey);                  // 3. 无论成败，锁必须释放
+        }
+    });
+}
+return oldShop;   // 请求线程不等重建，直接返回旧值
+</code></pre>
+<p>特点（面试要能说清）：</p>
+<ul>
+<li><code>void run()</code>：<strong>没有返回值</strong>，任务执行完就完了；</li>
+<li><strong>不能抛受检异常</strong>：<code>run()</code> 没有 <code>throws</code>，受检异常只能自己包成运行时异常（上面 <code>throw new RuntimeException(e)</code> 就是这个原因）；</li>
+<li>异常去哪：取决于怎么提交——<code>execute</code> 走线程池的未捕获异常处理，<code>submit</code> 会被封装进 Future（本项目<strong>没有取 Future，异常实际被吞了</strong>，见第 3.4 节，这是一个真实的隐患点）。</li>
+</ul>
+<h3 id="23-callable-futuretask">2.3 实现 Callable + FutureTask（有返回值、可抛受检异常）</h3>
+<p>场景：如果重建任务需要“告诉调用方成功失败”，就用 Callable：</p>
+<pre><code class="language-java">Callable&lt;Boolean&gt; rebuildTask = () -&gt; {
+    try {
+        Shop shop = getShopFromDb(id);   // 查数据库
+        saveShopToCache(key, shop);       // 回写缓存
+        return true;                      // ← 有返回值：告诉调用方“重建成功”
+    } finally {
+        unLock(lockKey);
+    }
+};
+
+FutureTask&lt;Boolean&gt; futureTask = new FutureTask&lt;&gt;(rebuildTask);  // 既实现了 Runnable，又实现了 Future
+CACHE_REBUILD_EXECUTOR.execute(futureTask);                      // 当 Runnable 提交
+
+// 需要结果时（会阻塞当前线程！）：
+boolean ok = futureTask.get();       // 受检异常：InterruptedException / ExecutionException
+</code></pre>
+<p>特点：</p>
+<ul>
+<li><strong>有返回值</strong>：结果通过 <code>Future/FutureTask</code> 拿；</li>
+<li><strong>可以抛受检异常</strong>（<code>call()</code> 声明了 <code>throws Exception</code>），但 <code>get()</code> 时会被包成 <code>ExecutionException</code>；</li>
+<li>执行结果只能提交给线程池（或包成 FutureTask 再交给 Thread）。</li>
+</ul>
+<p><strong>项目为什么没用 Callable</strong>：缓存重建是“发起后不关心结果”的场景——请求线程要立刻返回旧值，如果去 <code>get()</code> 等结果反而把自己阻塞了，违背异步重建的初衷。所以用 Runnable 更合适。</p>
+<h3 id="24-executorservice-threadpoolexecutor">2.4 线程池：ExecutorService / ThreadPoolExecutor（最常用的方式）</h3>
+<p>严格说，线程池自己“创建线程”的动作由<strong>线程工厂</strong>完成；我们提交的是<strong>任务</strong>，线程由池子创建、复用、回收。这就是它和 <code>new Thread()</code> 的本质区别：</p>
+<pre><code class="language-text">new Thread()   每次新建一条线程，用完销毁         —— 不可控
+线程池         预先/按需创建线程并复用，任务排队   —— 可控（并发数、队列、拒绝策略）
+</code></pre>
+<p><strong>两种创建路径。</strong></p>
+<p>路径一：<code>Executors</code> 快捷工厂（项目用的就是它）：</p>
+<pre><code class="language-java">// 项目真实代码（CacheClient.java:183）
+private static final ExecutorService CACHE_REBUILD_EXECUTOR =
+        Executors.newFixedThreadPool(10);
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>工厂方法</th>
+<th>内部结构</th>
+<th>特点</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newFixedThreadPool(n)</code></td>
+<td>core=max=n + 无界队列</td>
+<td>固定并发、任务排队</td>
+<td>队列无界 → 任务堆积 OOM</td>
+</tr>
+<tr>
+<td><code>newCachedThreadPool()</code></td>
+<td>core=0、max=Integer.MAX_VALUE</td>
+<td>来任务就复用/新建</td>
+<td>线程数无上限 → 线程爆炸</td>
+</tr>
+<tr>
+<td><code>newSingleThreadExecutor()</code></td>
+<td>1 线程 + 无界队列</td>
+<td>串行、保序</td>
+<td>同无界队列</td>
+</tr>
+<tr>
+<td><code>newScheduledThreadPool(n)</code></td>
+<td>支持定时/周期任务</td>
+<td>定时调度</td>
+<td>队列无界</td>
+</tr>
+<tr>
+<td><code>newWorkStealingPool()</code></td>
+<td>ForkJoin 窃取</td>
+<td>CPU 型并行</td>
+<td>不适合阻塞 IO</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>《阿里巴巴 Java 开发手册》禁止用 <code>Executors</code> 快捷方法（无界队列 / 线程数无上限），要求显式 <code>new ThreadPoolExecutor</code>。</p>
+</blockquote>
+<p>路径二：显式 <code>ThreadPoolExecutor</code>（推荐，面试标准答案）：</p>
+<pre><code class="language-java">ThreadPoolExecutor executor = new ThreadPoolExecutor(
+        4,                                        // corePoolSize 核心线程数
+        8,                                        // maximumPoolSize 最大线程数
+        60, TimeUnit.SECONDS,                     // 非核心线程空闲回收时间
+        new ArrayBlockingQueue&lt;&gt;(1000),           // 有界队列：防 OOM
+        r -&gt; new Thread(r, &quot;cache-rebuild&quot;),      // 线程工厂：给线程命名（ThreadFactory 是函数式接口）
+        new ThreadPoolExecutor.CallerRunsPolicy() // 拒绝策略：调用线程兜底
+);
+</code></pre>
+<p><strong>任务提交后，线程池是怎么处理的（线程创建/复用规则）：</strong></p>
+<pre><code class="language-text">提交任务
+  ├─ 运行线程数 &lt; corePoolSize     → 新建核心线程执行
+  ├─ 核心已满 → 任务进队列等待
+  ├─ 队列已满且 &lt; maximumPoolSize → 新建非核心线程执行
+  └─ 队列满且已达 maximumPoolSize → 触发拒绝策略
+（非核心线程空闲超过 keepAliveTime 回收；核心线程默认常驻）
+</code></pre>
+<p><strong>七个核心参数怎么定（结合项目“重建线程池”）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>含义</th>
+<th>项目取值思路</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>corePoolSize</td>
+<td>核心线程数</td>
+<td>重建是低频 IO，4~10 足够</td>
+</tr>
+<tr>
+<td>maximumPoolSize</td>
+<td>最大线程数</td>
+<td>略大于 core，抗小突发</td>
+</tr>
+<tr>
+<td>keepAliveTime / unit</td>
+<td>非核心线程空闲回收</td>
+<td>60s</td>
+</tr>
+<tr>
+<td>workQueue</td>
+<td>等待队列</td>
+<td><strong>必须有界</strong>（ArrayBlockingQueue(1000)）</td>
+</tr>
+<tr>
+<td>threadFactory</td>
+<td>线程创建方式</td>
+<td>命名 <code>cache-rebuild-1</code> 等</td>
+</tr>
+<tr>
+<td>handler</td>
+<td>拒绝策略</td>
+<td><code>CallerRunsPolicy</code>（不丢任务）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>四种拒绝策略：</strong></p>
+<pre><code class="language-text">AbortPolicy（默认）   抛 RejectedExecutionException
+CallerRunsPolicy      调用线程自己执行（反压、不丢任务）
+DiscardPolicy         静默丢弃
+DiscardOldestPolicy   丢最老的任务再重试
+</code></pre>
+<p><strong>线程数怎么估：</strong></p>
+<ul>
+<li>CPU 密集：约等于 CPU 核数（+1）；</li>
+<li>IO 密集：核数 ×（1 + 等待时间 / 计算时间），但要受数据库连接池、Redis 连接池、下游容量约束。</li>
+</ul>
+<blockquote>
+<p>回到项目：重建线程池固定 10 个线程，是因为这是 IO 低频任务、且要防止“重建风暴”把线程打爆；如果改造，把 <code>newFixedThreadPool(10)</code> 换成上面的显式写法即可。</p>
+</blockquote>
+<h3 id="25-execute-submit">2.5 提交任务：execute 与 submit（返回值与异常的区别）</h3>
+<p><strong>写法一：无返回值提交 —— <code>execute(Runnable)</code></strong></p>
+<p>任务只是“干活”，不关心结果：</p>
+<pre><code class="language-java">ExecutorService executor = Executors.newFixedThreadPool(2);
+
+// 定义任务：一件事，不产生结果
+Runnable task = () -&gt; System.out.println(&quot;执行任务，线程：&quot; + Thread.currentThread().getName());
+
+executor.execute(task);     // 提交即结束：没有返回值，也拿不到执行结果
+</code></pre>
+<p><strong>写法二：有返回值提交 —— <code>submit(Callable)</code> / <code>submit(Runnable)</code></strong></p>
+<p>需要拿执行结果时用 <code>submit</code>：</p>
+<pre><code class="language-java">// 1) submit(Callable)：任务有返回值
+Future&lt;Integer&gt; future = executor.submit(() -&gt; {
+    // 模拟耗时计算（或查库）
+    return 100;
+});
+Integer result = future.get();      // 阻塞等待结果；任务异常会被包成 ExecutionException
+System.out.println(result);         // 100
+
+// 2) submit(Runnable)：也有 Future，但 get() 只能拿到 null（Runnable 本身没有返回值）
+Future&lt;?&gt; f = executor.submit(() -&gt; System.out.println(&quot;干完啦&quot;));
+Object nothing = f.get();           // null
+</code></pre>
+<p><code>Future</code> 还支持超时和取消：</p>
+<pre><code class="language-java">future.get(1, TimeUnit.SECONDS);    // 超时控制：等不到就抛 TimeoutException
+future.cancel(true);                // 取消任务
+</code></pre>
+<p><strong>一句话</strong>：<code>execute</code> = 提交即忘（无返回值）；<code>submit</code> = 拿着 <code>Future</code> 等结果（有返回值，<code>get()</code> 会阻塞）。项目里重建任务属于“无返回值”用法。</p>
+<table>
+<thead>
+<tr>
+<th>对比</th>
+<th>execute</th>
+<th>submit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数</td>
+<td>Runnable</td>
+<td>Runnable / Callable</td>
+</tr>
+<tr>
+<td>返回值</td>
+<td>无</td>
+<td><code>Future</code></td>
+</tr>
+<tr>
+<td>异常去向</td>
+<td>线程池的未捕获异常处理器（默认打印堆栈）</td>
+<td>封装进 Future，<strong>不 get 就被吞</strong></td>
+</tr>
+<tr>
+<td>适合</td>
+<td>不关心结果、希望异常可见</td>
+<td>需要结果（或拿 Future 做取消/超时）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>项目用法点评</strong>：CacheClient 用的是 <code>submit(Runnable)</code> 且从不 <code>get()</code>——任务里的 <code>RuntimeException</code> 实际被静默吞掉（好在 <code>finally</code> 保证了解锁）。更稳妥的两种改法：</p>
+<pre><code class="language-java">// 改法一：execute + 自己记日志（异常不丢）
+CACHE_REBUILD_EXECUTOR.execute(() -&gt; {
+    try {
+        Shop shop = getShopFromDb(id);   // 查数据库
+        saveShopToCache(key, shop);       // 回写缓存
+    } catch (Exception e) {
+        log.error(&quot;缓存重建失败 key={}&quot;, key, e);   // 出错能看见
+    } finally {
+        unLock(lockKey);
+    }
+});
+</code></pre>
+<h3 id="26-completablefuture">2.6 CompletableFuture（异步编排，项目未用）</h3>
+<pre><code class="language-java">// 假设秒杀详情要聚合“店铺 + 实时库存 + 券信息”三个独立调用
+CompletableFuture&lt;Shop&gt; shopF = CompletableFuture.supplyAsync(
+        () -&gt; shopService.getById(shopId), executor);
+CompletableFuture&lt;Integer&gt; stockF = CompletableFuture.supplyAsync(
+        () -&gt; readStock(voucherId), executor);
+
+CompletableFuture.allOf(shopF, stockF).join();
+Shop shop = shopF.join();
+int stock = stockF.join();
+</code></pre>
+<p>特点：</p>
+<ul>
+<li><code>runAsync</code>（无返回）/ <code>supplyAsync</code>（有返回）；</li>
+<li>编排：<code>thenApply / thenAccept / thenCompose / thenCombine / allOf / anyOf</code>；</li>
+<li><strong>默认用 <code>ForkJoinPool.commonPool()</code>——生产必须显式传自定义线程池</strong>；</li>
+<li>异常：<code>join()</code> 抛 <code>CompletionException</code>（非受检），<code>get()</code> 抛 <code>ExecutionException</code>（受检）。</li>
+</ul>
+<p><strong>项目为什么没用</strong>：秒杀详情的数据源是本机缓存（Caffeine）/ Redis / MySQL，逐级回源本身已很快；它们之间还有“缓存命中就不查下一级”的依赖关系，并不是三个独立的远程调用，强行并行反而增加连接池压力——<strong>这是“为了不用而不用”的正确答案</strong>。</p>
+<h3 id="27-spring-async">2.7 Spring @Async（项目未用）</h3>
+<pre><code class="language-java">@Async
+public void sendNotice(Long userId) { ... }   // 需要 @EnableAsync + 线程池配置
+</code></pre>
+<p>坑：同类内部自调用会绕过代理、直接变成同步；默认线程池不受控。项目里需要异步的链路全部走 MQ（更可靠），所以没有使用。</p>
+<h3 id="28">2.8 创建方式总对比表</h3>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>返回值</th>
+<th>受检异常</th>
+<th>线程复用</th>
+<th>项目里</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>继承 Thread</td>
+<td>无</td>
+<td>不能</td>
+<td>无（每次新建）</td>
+<td>未用</td>
+</tr>
+<tr>
+<td>实现 Runnable</td>
+<td>无</td>
+<td>不能（要自己包）</td>
+<td>取决于提交到哪里</td>
+<td><strong>用（submit 到线程池）</strong></td>
+</tr>
+<tr>
+<td>Callable + FutureTask</td>
+<td>有（Future）</td>
+<td>能（get 时包成 ExecutionException）</td>
+<td>同上</td>
+<td>未用</td>
+</tr>
+<tr>
+<td>线程池 execute(Runnable)</td>
+<td>无</td>
+<td>运行时异常可见（未捕获处理器）</td>
+<td>有</td>
+<td>未用</td>
+</tr>
+<tr>
+<td>线程池 submit</td>
+<td>有（Future）</td>
+<td>封装，不 get 会被吞</td>
+<td>有</td>
+<td><strong>用</strong></td>
+</tr>
+<tr>
+<td>CompletableFuture</td>
+<td>链式结果</td>
+<td>join 非受检 / get 受检</td>
+<td>默认 ForkJoinPool 或传入</td>
+<td>未用</td>
+</tr>
+<tr>
+<td>Spring @Async</td>
+<td>Future/void</td>
+<td>封装</td>
+<td>Spring 线程池</td>
+<td>未用</td>
+</tr>
+</tbody>
+</table>
+<p><strong>怎么选</strong>：</p>
+<pre><code class="language-text">只是后台干活、不关心结果       -&gt; Runnable + 线程池 execute（异常可见）
+要结果 / 要取消 / 要超时        -&gt; Callable + submit，或 FutureTask
+多个异步任务要编排（依赖/聚合）  -&gt; CompletableFuture
+需要异步的跨服务链路            -&gt; 首选 MQ（持久化+重试），不是线程池
+</code></pre>
+<hr />
+<h2 id="3">3. 返回值与异常——把区别说透</h2>
+<h3 id="31-runnable-vs-callable">3.1 Runnable vs Callable（同一件事两种写法）</h3>
+<pre><code class="language-java">// Runnable：无返回
+Runnable r = () -&gt; { doRebuild(id); };
+executor.execute(r);
+
+// Callable：有返回、可抛受检异常
+Callable&lt;Boolean&gt; c = () -&gt; { doRebuild(id); return true; };
+Future&lt;Boolean&gt; f = executor.submit(c);
+boolean ok = f.get();   // 想拿结果，就得阻塞等待
+</code></pre>
+<p>一句话：<strong>Runnable 是“动作”，Callable 是“带结果的动作”</strong>；Callable 只能交给线程池（<code>submit</code>）或包进 <code>FutureTask</code>。</p>
+<h3 id="32-execute-vs-submit">3.2 execute vs submit（异常的去向是最大区别）</h3>
+<pre><code class="language-text">execute(task)：
+  任务抛异常 → 线程池的 UncaughtExceptionHandler 处理（默认打印堆栈）→ 线程被替换
+submit(task) ：
+  任务抛异常 → 封装进返回的 Future → 不调用 get() 就永远没人知道
+</code></pre>
+<p>这就是为什么“用了线程池但出错看不见”的经典原因。项目里 <code>submit</code> 不 <code>get</code> 的重建任务就属于这类，改进见 2.5。</p>
+<h3 id="33-futureget-vs-completablefuturejoin">3.3 Future.get vs CompletableFuture.join</h3>
+<pre><code class="language-text">get()  ：受检异常（InterruptedException / ExecutionException），可中断（cancel(true)）；
+join() ：非受检（CompletionException），链式编排里更顺手。
+两者都会阻塞调用线程——不要在请求线程上随便调用。
+</code></pre>
+<h3 id="34">3.4 三个“异常被吞”的真实场景</h3>
+<ol>
+<li><strong>submit 不 get</strong>（本项目的重建任务就是）：异常静默。至少任务内部要 <code>catch + log</code>；</li>
+<li><strong>execute + 任务内部 catch 了不处理</strong>：异常消失；</li>
+<li><strong>@Async void 方法</strong>：异常不会传回调用方。</li>
+</ol>
+<p>教训：<strong>线程池任务必须自己负责异常可观测性</strong>（日志/监控），否则等于埋雷。</p>
+<hr />
+<h2 id="4-neargo">4. NearGo 线程全景（结合代码）</h2>
+<h3 id="41-cache_rebuild_executor">4.1 唯一自建线程池：CACHE_REBUILD_EXECUTOR</h3>
+<p>代码位置两处（下面简化为示意）：</p>
+<pre><code class="language-java">// 1) 定义（CacheClient.java:183，简化示意）
+private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
+
+// 2) 使用（CacheClient.java:156-177，简化示意）
+if (tryLock(lockKey)) {                          // 抢到锁的线程才重建
+    CACHE_REBUILD_EXECUTOR.submit(() -&gt; {        // 丢给线程池，请求线程不等
+        try {
+            Shop shop = getShopFromDb(id);       // 查数据库
+            saveShopToCache(key, shop);           // 回写缓存（新过期时间）
+        } finally {
+            unLock(lockKey);                      // 成败都要解锁
+        }
+    });
+}
+return oldShop;   // 立刻返回旧值
+</code></pre>
+<p>逐点解读：</p>
+<ul>
+<li>为什么需要线程池：查库 + 回写是几百毫秒的 IO，<strong>不能让请求线程等</strong>；丢给线程池异步做，请求线程直接返回旧值（逻辑过期策略的“可用性优先”）；</li>
+<li>为什么固定 10 个线程：重建任务量小（只有抢到锁的线程会提交一次），10 个足够且能兜住小突发；固定线程数也防止了“重建风暴”把线程打爆；</li>
+<li>为什么任务里 try/finally：<strong>锁必须释放</strong>，否则后续重建永远抢不到锁；</li>
+<li>已知隐患（面试加分点）：
+  1. <code>newFixedThreadPool</code> 内部是<strong>无界队列</strong>——任务堆积会 OOM；改成显式 <code>new ThreadPoolExecutor</code>（有界队列 + CallerRunsPolicy）；
+  2. 线程没有命名（dump 里是 <code>pool-1-thread-x</code>）——自定义 ThreadFactory；
+  3. <code>static final</code> 且无生命周期管理——生产可交给 Spring 的 <code>ThreadPoolTaskExecutor</code>；
+  4. <code>submit</code> 不 <code>get</code> 导致异常被吞——任务内 <code>catch + log</code>。</li>
+</ul>
+<h3 id="42">4.2 框架自带的线程（不是项目代码，但要说得出）</h3>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>线程</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tomcat</td>
+<td>请求工作线程池（默认 max 200）</td>
+<td>每个 HTTP 请求一个线程</td>
+</tr>
+<tr>
+<td>RocketMQ</td>
+<td>消费线程池（<code>CONCURRENTLY</code>）</td>
+<td>并发消费下单/关单消息</td>
+</tr>
+<tr>
+<td>RocketMQ</td>
+<td>生产者发送线程</td>
+<td>syncSend 的底层发送与重试</td>
+</tr>
+<tr>
+<td>Redisson</td>
+<td>Netty event loop + 看门狗定时器</td>
+<td>锁的通信与续期</td>
+</tr>
+<tr>
+<td>XXL-JOB</td>
+<td>JobThread（每个 JobHandler 一条）</td>
+<td>对账任务串行执行</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>面试说法：“业务线程池只有缓存重建这一个；其余都是框架自带的，我清楚它们各自负责什么。”</p>
+</blockquote>
+<h3 id="43-threadlocaluserholder">4.3 ThreadLocal：UserHolder（并发上下文工具）</h3>
+<pre><code class="language-java">public class UserHolder {
+    private static final ThreadLocal&lt;UserDTO&gt; tl = new ThreadLocal&lt;&gt;();
+    public static void saveUser(UserDTO user) { tl.set(user); }
+    public static UserDTO getUser() { return tl.get(); }
+    public static void removeUser() { tl.remove(); }
+}
+</code></pre>
+<p>拦截器里：请求进入 <code>saveUser</code>，请求结束（<code>afterCompletion</code>）必须 <code>removeUser()</code>。</p>
+<blockquote>
+<p>不 remove 的后果：Tomcat 线程池复用线程时<strong>上下文串线</strong>（上一个用户串到下一个请求）+ ThreadLocalMap <strong>内存泄漏</strong>。这和“线程池复用线程”是配套知识点。</p>
+</blockquote>
+<hr />
+<h2 id="5">5. 哪些地方适合多线程、哪些不适合</h2>
+<p><strong>适合：</strong></p>
+<pre><code class="language-text">1. 缓存异步重建（项目已用）
+2. 多个相互独立的远程调用（可引入 CompletableFuture）
+3. 对账任务逐条处理若瓶颈在 RTT，可分片并行（当前数据量小，没做）
+4. 批量通知 / 短信 / 非核心逻辑
+</code></pre>
+<p><strong>不适合盲目并发：</strong></p>
+<pre><code class="language-text">1. 同一个数据库事务里的多个写操作
+2. 同一订单/同一用户上的强顺序业务
+3. 共享可变状态很多的代码
+4. MQ 已经异步解耦的地方再套一层线程
+</code></pre>
+<hr />
+<h2 id="6">6. 并发安全数据结构（项目现状与扩展）</h2>
+<blockquote>
+<p>诚实说明：NearGo 的共享状态全部放在 <strong>Redis</strong>（Spring 单例 Bean 里没有可变共享字段），所以没用 <code>ConcurrentHashMap</code>、<code>LongAdder</code>。下面是“如果做本机统计”的正确写法。</p>
+</blockquote>
+<h3 id="concurrenthashmap">ConcurrentHashMap</h3>
+<pre><code class="language-java">ConcurrentMap&lt;String, AtomicInteger&gt; hotKeyCounters = new ConcurrentHashMap&lt;&gt;();
+hotKeyCounters.computeIfAbsent(key, ignored -&gt; new AtomicInteger()).incrementAndGet();
+</code></pre>
+<h3 id="longadder">LongAdder（高并发计数更适合）</h3>
+<pre><code class="language-java">ConcurrentMap&lt;String, LongAdder&gt; counters = new ConcurrentHashMap&lt;&gt;();
+counters.computeIfAbsent(api, ignored -&gt; new LongAdder()).increment();
+</code></pre>
+<h3 id="blockingqueue">BlockingQueue</h3>
+<pre><code class="language-java">BlockingQueue&lt;String&gt; queue = new ArrayBlockingQueue&lt;&gt;(1000);
+</code></pre>
+<h3 id="copyonwritearraylist">CopyOnWriteArrayList</h3>
+<p>适合读多写少：监听器列表、配置快照、白名单。</p>
+<blockquote>
+<p><strong>为什么秒杀用 Redis 而不是这些？</strong> 限流/库存/名单要跨实例共享，JVM 内并发容器只在单机有效。</p>
+</blockquote>
+<hr />
+<h2 id="7-jvm">7. 为什么项目不用 JVM 锁</h2>
+<p><code>synchronized</code>：互斥 + 可见性；<code>volatile</code>：可见性 + 有序性（<code>count++</code> 仍非原子）；<code>ReentrantLock</code>：支持 <code>tryLock</code>、可中断、公平锁。</p>
+<pre><code class="language-java">private volatile boolean running = true;
+</code></pre>
+<p><strong>NearGo 为什么一处 JVM 锁都没写？</strong></p>
+<pre><code class="language-text">1. 多实例部署：synchronized 只锁得住当前 JVM
+2. 秒杀资格判断：Redis + Lua 原子脚本替代锁
+3. 订单落库并发：Redisson 分布式锁（lock:order:{userId}）+ DB 条件更新
+4. 缓存重建：Redis SETNX 互斥锁（lock:shop:{id}）
+</code></pre>
+<p>一句话：<strong>JVM 锁只解决单实例并发；跨实例需要 Redis 分布式锁、数据库唯一约束/乐观锁。</strong></p>
+<hr />
+<h2 id="8-rocketmq-consumer">8. RocketMQ Consumer 与多线程</h2>
+<p>不要在 Consumer 里手动开线程：</p>
+<pre><code class="language-java">// 反例：消费线程先返回（消息已 ACK），后台线程随后失败 → 消息被认为消费成功，丢失
+public void onMessage(String message) {
+    executor.submit(() -&gt; handle(message));   // ❌ 立刻返回 = 消费成功
+}
+</code></pre>
+<p>NearGo 的消费端是<strong>同步处理</strong>（方法执行完才返回/抛异常）：</p>
+<pre><code class="language-java">@Override
+public void onMessage(String orderId) {
+    boolean closed = voucherOrderService.closeTimeoutOrder(Long.valueOf(orderId));
+    log.info(&quot;RocketMQ 延迟关单 orderId={}, closed={}&quot;, orderId, closed);
+    // 抛异常 → 消费失败 → Broker 稍后重投（closeTimeoutOrder 幂等，不会重复释放）
+}
+</code></pre>
+<p>提升吞吐交给 MQ 自身：消费线程池 + 消费组（<code>consumeMode = CONCURRENTLY</code>）。</p>
+<hr />
+<h2 id="9-rocketmq">9. RocketMQ 消费重试与幂等</h2>
+<p>RocketMQ 常见语义是 At-Least-Once：</p>
+<pre><code class="language-text">读取消息 → 业务处理 → 返回成功（ACK）/ 抛异常（重投）
+</code></pre>
+<p>消费端必须幂等。<strong>NearGo 没有用去重表</strong>，因为“事件 ID”天然存在——订单 ID：</p>
+<pre><code class="language-text">第一层：getById(orderId) —— 同一条消息重投，直接返回
+第二层：count(userId + voucherId + status != 4) —— 同一人重复下单被拦住
+第三层：Redisson lock:order:{userId} —— 两条消息并发穿过前两层
+第四层：DB 条件扣减 stock &gt; 0 —— 状态不一致时抛异常重试
+</code></pre>
+<p>如果业务没有天然幂等键（如“点赞事件”），才需要 Inbox 去重表。</p>
+<hr />
+<h2 id="10-outbox">10. 消息可靠投递：为什么不用 Outbox</h2>
+<p>Kafka 体系常见 Outbox 模式：</p>
+<pre><code class="language-text">业务事务 ├─ 写业务表 └─ 写 event_outbox → Relay → Kafka
+</code></pre>
+<p><strong>NearGo 为什么不用 Outbox？</strong> 因为秒杀入口首先改的是 <strong>Redis（Lua 预扣）</strong>，不是本地数据库事务——Outbox 要求“业务状态和待发事件在同一个本地事务里”，而我们的“业务状态”在 Redis 里，Outbox 解决不了 Redis 与消息的一致性。</p>
+<p>替代方案（项目实际做法）：</p>
+<pre><code class="language-text">Lua 预扣成功 → 写预扣流水（reservation）
+            → syncSend 同步等 Broker 确认
+               ├─ 失败 → 回滚脚本补偿
+               └─ 假失败（网络超时）→ 交给对账兜底
+XXL-JOB 每分钟扫描流水 → 未落库重投 / 已取消释放 / 正常结案
+</code></pre>
+<p>一句话：<strong>Outbox 解决“MySQL 事务 × 消息”的原子性；我们解决“Redis 预扣 × 消息”的最终一致性——同步确认 + 失败补偿 + 定时对账三件套。</strong></p>
+</main>
+<script src="vendor/mermaid.min.js"></script>
+<script>
+(function () {
+  // ---------- 目录：过滤 / 展开 / 收起 ----------
+  var filter = document.getElementById('tocFilter');
+  filter.addEventListener('input', function () {
+    var q = filter.value.trim().toLowerCase();
+    document.querySelectorAll('#toc li').forEach(function (li) {
+      li.style.display = (!q || li.textContent.toLowerCase().indexOf(q) >= 0) ? '' : 'none';
+    });
+    if (q) document.querySelectorAll('#toc details').forEach(function (d) { d.open = true; });
+  });
+  document.getElementById('expandToc').onclick = function () {
+    document.querySelectorAll('#toc details').forEach(function (d) { d.open = true; });
+  };
+  document.getElementById('collapseToc').onclick = function () {
+    document.querySelectorAll('#toc details').forEach(function (d) { d.open = false; });
+  };
+  document.querySelectorAll('#toc a').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.stopPropagation(); });
+  });
+
+  // ---------- mermaid：默认折叠，展开时才渲染 ----------
+  var mermaidReady = false;
+  function initMermaid() {
+    if (mermaidReady || typeof mermaid === 'undefined') return;
+    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    mermaidReady = true;
+  }
+  function renderOne(el) {
+    if (!el || el.dataset.rendered === '1') return;
+    initMermaid();
+    if (!mermaidReady) return;
+    el.dataset.rendered = '1';
+    mermaid.run({ nodes: [el] }).catch(function (err) {
+      el.dataset.rendered = '0';
+      el.innerHTML = '<pre class="mermaid-error">渲染失败：' + ((err && err.message) || err) + '</pre>';
+    });
+  }
+  document.querySelectorAll('.diagram-block details').forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      if (d.open) renderOne(d.querySelector('.mermaid'));
+    });
+  });
+  function expandFigs() { document.querySelectorAll('.diagram-block details').forEach(function (d) { d.open = true; }); }
+  function collapseFigs() { document.querySelectorAll('.diagram-block details').forEach(function (d) { d.open = false; }); }
+  document.getElementById('expandFigs').onclick = expandFigs;
+  document.getElementById('collapseFigs').onclick = collapseFigs;
+  document.getElementById('topExpandFigs').onclick = expandFigs;
+  document.getElementById('topCollapseFigs').onclick = collapseFigs;
+
+  // ---------- mermaid 源码抽屉 ----------
+  var mermaidBtn = document.getElementById('mermaidBtn');
+  var drawer = document.getElementById('mermaidDrawer');
+  if (drawer) {
+    mermaidBtn.onclick = function () { drawer.classList.toggle('open'); };
+    drawer.querySelector('.drawer-close').onclick = function () { drawer.classList.remove('open'); };
+    document.getElementById('copyAllMermaid').onclick = function () {
+      var btn = this;
+      var all = Array.prototype.map.call(drawer.querySelectorAll('.mermaid-source'), function (p) {
+        return p.innerText;
+      }).join('
+
+');
+      navigator.clipboard.writeText(all).then(function () {
+        btn.textContent = '已复制';
+        setTimeout(function () { btn.textContent = '复制全部'; }, 1200);
+      });
+    };
+  } else if (mermaidBtn) {
+    mermaidBtn.style.display = 'none';   // 没有图时不显示按钮
+  }
+
+  // ---------- 代码块复制按钮 ----------
+  document.querySelectorAll('main pre').forEach(function (pre) {
+    if (pre.closest('.mermaid-wrap')) return;
+    var btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = '复制';
+    btn.onclick = function () {
+      navigator.clipboard.writeText(pre.innerText).then(function () {
+        btn.textContent = '已复制';
+        setTimeout(function () { btn.textContent = '复制'; }, 1200);
+      });
+    };
+    pre.appendChild(btn);
+  });
+
+  // ---------- 目录当前章节高亮 ----------
+  var links = {};
+  document.querySelectorAll('#toc a.toc-link').forEach(function (a) {
+    links[a.getAttribute('href').slice(1)] = a;
+  });
+  if (window.IntersectionObserver) {
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && links[en.target.id]) {
+          document.querySelectorAll('#toc a.active').forEach(function (x) { x.classList.remove('active'); });
+          links[en.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '0px 0px -85% 0px' });
+    document.querySelectorAll('main h2, main h3, main h4').forEach(function (h) { obs.observe(h); });
+  }
+})();
+</script>
+</body>
+</html>
