@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NearGo 秒杀对账任务：if-else → 规则树 改造前后对比</title>
+<style>
+  :root{--ink:#17212b;--muted:#5f6b76;--line:#d7dfe2;--accent:#167c73;--accent-dark:#0d5f58;--accent-soft:#e9f5f3;--bg:#eef1f2;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.75 "Microsoft YaHei","Segoe UI",sans-serif;}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px;}
+  header.hero{background:linear-gradient(135deg,#0d5f58,#167c73 60%,#2c9a8f);color:#fff;border-radius:14px;padding:34px 38px;box-shadow:0 10px 28px rgba(13,95,88,.25);}
+  .hero h1{margin:0 0 10px;font-size:26px;letter-spacing:.5px}
+  .hero p{margin:0;opacity:.94;font-size:14.5px}
+  .hero .meta{margin-top:14px;font-size:13px;opacity:.85;border-top:1px solid rgba(255,255,255,.25);padding-top:12px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}
+  .card{background:#fff;border-radius:12px;padding:16px 18px;border:1px solid var(--line);box-shadow:0 3px 10px rgba(23,59,57,.05)}
+  .card .num{font-size:24px;font-weight:700;color:var(--accent)}
+  .card .cap{font-size:13px;color:var(--muted);margin-top:4px}
+  section{background:#fff;border-radius:14px;border:1px solid var(--line);padding:26px 30px;margin-top:22px;box-shadow:0 3px 12px rgba(23,59,57,.05)}
+  h2{font-size:20px;margin:0 0 16px;padding-left:12px;border-left:5px solid var(--accent)}
+  h3{font-size:16.5px;margin:26px 0 10px;color:var(--accent-dark)}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0 8px 22px;padding:0}
+  li{margin:4px 0}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--accent-soft);color:var(--accent-dark);font-weight:600;white-space:nowrap}
+  tr:nth-child(even) td{background:#fafcfc}
+  code.inline{background:#eef3f2;border:1px solid #dbe5e3;border-radius:4px;padding:1px 6px;font-family:Consolas,monospace;font-size:13px}
+  pre{background:#101d1b;color:#dbe7e4;border-radius:10px;padding:16px 18px;overflow:auto;font:13px/1.7 Consolas,"Courier New",monospace;border:1px solid #1d3430;margin:12px 0}
+  pre .cm{color:#7fa89f}
+  pre .hl{color:#ffd479}
+  pre .hlr{color:#ff9d9d}
+  pre .hlg{color:#8fe3b0}
+  .fig{display:block;width:100%;height:auto;margin:14px 0 6px;border:1px solid #dbe5e3;border-radius:12px;background:#f5f8f7}
+  figcaption{font-size:13px;color:var(--muted);margin:6px 2px 18px;text-align:center}
+  .tree{font:13px/1.9 Consolas,"Microsoft YaHei",monospace;background:#f7faf9;border:1px solid #dbe5e3;border-radius:10px;padding:14px 16px;white-space:pre;overflow:auto}
+  .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;margin-right:6px}
+  .tag.new{background:#e6f7ee;color:#197a4b;border:1px solid #bfe6d2}
+  .tag.edit{background:#fff3e0;color:#a4651d;border:1px solid #f0d5a8}
+  .qa{border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin:16px 0}
+  .qa b{color:var(--accent-dark)}
+  .warn{background:#fff8ee;border:1px solid #f0dcb4;border-radius:10px;padding:12px 16px;font-size:13.5px;margin:12px 0}
+  .good{background:#f1faf5;border:1px solid #cbe8d8;border-radius:10px;padding:12px 16px;font-size:13.5px;margin:12px 0}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pill{display:inline-block;font-size:12px;padding:1px 9px;border-radius:999px;margin:2px 4px 2px 0}
+  .pill.blue{background:#edf6ff;color:#2c6a9e;border:1px solid #bcd8ef}
+  .pill.orange{background:#fff5e8;color:#a4651d;border:1px solid #f0d5a8}
+  .pill.green{background:#edf9f1;color:#2e7d4f;border:1px solid #c4e5d0}
+  .pill.red{background:#fff0f0;color:#a34e4e;border:1px solid #ecc6c6}
+  footer{margin-top:26px;font-size:12.5px;color:var(--muted);text-align:center}
+  @media print{body{background:#fff}section,.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>秒杀对账任务规则树改造 · 前后对比</h1>
+  <p>SeckillReconciliationTask：把「5 个 if、3 个 continue、2 个 catch」拼出来的隐性决策树，改成节点显式声明分支的规则树 —— 功能与行为完全不变，改的是「谁能一眼看懂、加分支要动哪里」。</p>
+  <div class="meta">项目：NearGo（黑马点评改造版）&nbsp;｜&nbsp;改造对象：单条预扣记录的处置逻辑&nbsp;｜&nbsp;引擎：<code style="color:#fff">com.hmdp.framework.rule</code>（自研，纯 Java 8 + Spring 注解，约 60 行）</div>
+</header>
+
+<div class="cards">
+  <div class="card"><div class="num">5 if · 3 continue · 2 catch</div><div class="cap">改造前：分支靠 continue 拼平，树是隐性的</div></div>
+  <div class="card"><div class="num">1 处分支声明</div><div class="cap">改造后：只写在 OrderLookupNode.next()</div></div>
+  <div class="card"><div class="num">12 + 1 + 1</div><div class="cap">新增引擎3+节点9 / 改造任务 / 引擎单测</div></div>
+  <div class="card"><div class="num">0 行为变化</div><div class="cap">Redis / MQ / 脚本调用逐条对齐（见真值表）</div></div>
+</div>
+
+<!-- ===================== 1. 背景 ===================== -->
+<section>
+  <h2>一、这次改造的逻辑在干什么</h2>
+  <p><code class="inline">SeckillReconciliationTask</code> 是 XXL-JOB 定时任务（<code class="inline">@XxlJob("seckillReconcileJob")</code>），负责秒杀链路的最终一致性兜底。它有 4 件事，其中第 1 件就是本次改造的对象：</p>
+  <ol>
+    <li><b>修复预扣（本次改造）</b>：扫描 <code class="inline">seckill:reservation:*</code> 预扣记录，逐条判断并处置：<span class="pill orange">未落库 → 重投 MQ</span><span class="pill green">已取消 → 释放预扣</span><span class="pill blue">已落库 → 补一人一单标记</span><span class="pill red">未到窗口 → 跳过</span></li>
+    <li>数量对账：Redis 名单人数 vs DB 有效订单数，不一致打警告（未改）</li>
+    <li>XXL-JOB 失败语义：单条失败累计 <code class="inline">hasFailure</code>，最后抛异常让调度标记失败（未改）</li>
+    <li>开关节流：<code class="inline">seckill.reconcile.enabled=false</code> 直接跳过（未改）</li>
+  </ol>
+  <div class="good">关键点：<b>每条预扣记录要按「订单状态 + 时间窗口」做一次多分支决策</b>。这就是天然的决策树 —— 改造要做的只是把这棵树从过程代码里「拎出来摆明」。</div>
+</section>
+
+<!-- ===================== 2. 改造前 ===================== -->
+<section>
+  <h2>二、改造前：一棵藏在 continue 里的树</h2>
+
+  <h3>2.1 原版骨架代码（编号为流程分支点）</h3>
+<pre><span class="cm">// SeckillReconciliationTask.java（改造前，75 行的 repairReservations()）</span>
+while (cursor.hasNext()) {
+  try {
+    fields = opsForHash().entries(key);
+    orderId/userId/voucherId/reservedAt = parseLong(...) 全解析;
+
+    <span class="hlr">if (任一解析失败) { hasFailure = true; continue; }</span>              <span class="cm">// ① 元数据不全</span>
+
+    order = voucherOrderMapper.selectById(orderId);
+
+    <span class="hl">if (order == null) {</span>                                              <span class="cm">// ② 未落库</span>
+      <span class="hlr">if (!shouldRetry(fields, reservedAt)) continue;</span>                 <span class="cm">// ③ 未到窗口，静默跳过</span>
+      try { syncSend(...); increment(retryCount); put(lastRetryAt); }   <span class="cm">// ④ 重投</span>
+      <span class="hlr">catch (Exception e) { hasFailure = true; ... }</span>                  <span class="cm">//    重投失败</span>
+      <span class="hlg">continue;</span>                                                       <span class="cm">// ⑤ ★关键：使 ⑥ 与 ② 平级</span>
+    }
+
+    <span class="hl">if (Integer.valueOf(4).equals(order.getStatus())) {</span>               <span class="cm">// ⑥ 已取消</span>
+      released = releaseRedisReservation(...);
+      <span class="hlr">if (released == null) { hasFailure = true; ... }</span>                 <span class="cm">// ⑦ 释放失败</span>
+      else log.info(...);
+    } else {                                                            <span class="cm">// ⑧ 已落库</span>
+      opsForSet().add(orderKey, userId); delete(key);
+    }
+
+  } <span class="hlr">catch (Exception e) { hasFailure = true; ... }</span>                      <span class="cm">// ⑨ 单条兜底</span>
+}</pre>
+
+  <figure>
+    <svg class="fig" viewBox="0 0 1500 880" role="img" aria-label="改造前：隐性决策树流程图">
+      <defs>
+        <marker id="a1" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 Z" fill="#4d7773"/></marker>
+        <marker id="a1r" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 Z" fill="#bd5e5e"/></marker>
+      </defs>
+      <style>
+        .bx{fill:#fff;stroke:#9db8b3;stroke-width:2}
+        .bxo{fill:#fff5e8;stroke:#dda35c;stroke-width:2}
+        .bxg{fill:#edf9f1;stroke:#75b78c;stroke-width:2}
+        .bxr{fill:#fff0f0;stroke:#cf7676;stroke-width:2}
+        .bxb{fill:#edf6ff;stroke:#72a9d4;stroke-width:2}
+        .t{font:600 17px "Microsoft YaHei";fill:#173b39;text-anchor:middle}
+        .ts{font:400 14px "Microsoft YaHei";fill:#486460;text-anchor:middle}
+        .tr{font:400 13px "Microsoft YaHei";fill:#a34e4e;text-anchor:middle}
+        .lbl{font:600 14px "Microsoft YaHei";fill:#42615e;text-anchor:middle}
+        .edge{stroke:#4d7773;stroke-width:2.5;fill:none;marker-end:url(#a1)}
+        .np{fill:none;stroke:#c9b48a;stroke-width:2}
+      </style>
+
+      <rect x="560" y="20" width="380" height="54" rx="10" class="bx"/>
+      <text x="750" y="53" class="t">while (cursor.hasNext()) 取出一条预扣记录</text>
+
+      <rect x="580" y="120" width="340" height="64" rx="10" class="bxo"/>
+      <text x="750" y="147" class="t">① 元数据解析完整？</text>
+      <text x="750" y="171" class="ts">(4 个字段 parseLong 全非 null)</text>
+
+      <rect x="1080" y="120" width="360" height="64" rx="10" class="bxr"/>
+      <text x="1260" y="157" class="t">hasFailure=true；continue</text>
+
+      <rect x="580" y="228" width="340" height="60" rx="10" class="bxb"/>
+      <text x="750" y="263" class="t">② selectById(orderId) 查订单</text>
+
+      <rect x="580" y="336" width="340" height="64" rx="10" class="bxo"/>
+      <text x="750" y="363" class="t">③ order == null ?</text>
+      <text x="750" y="387" class="ts">（订单是否未落库）</text>
+
+      <rect x="180" y="470" width="340" height="64" rx="10" class="bxo"/>
+      <text x="350" y="497" class="t">shouldRetry() ?</text>
+      <text x="350" y="521" class="ts">（是否到重投窗口）</text>
+
+      <rect x="980" y="470" width="340" height="64" rx="10" class="bxo"/>
+      <text x="1150" y="497" class="t">status == 4 ?</text>
+      <text x="1150" y="521" class="ts">（订单是否已取消）</text>
+
+      <rect x="60" y="600" width="290" height="70" rx="10" class="bxg"/>
+      <text x="205" y="629" class="t">③ 静默跳过（continue）</text>
+      <text x="205" y="653" class="ts">不算失败</text>
+
+      <rect x="370" y="600" width="330" height="86" rx="10" class="bxo"/>
+      <text x="535" y="626" class="t">④ 重投：syncSend(原订单ID)</text>
+      <text x="535" y="649" class="ts">increment(retryCount)、put(lastRetryAt)</text>
+      <text x="535" y="672" class="tr">syncSend 异常 → hasFailure=true</text>
+
+      <rect x="880" y="600" width="290" height="86" rx="10" class="bxg"/>
+      <text x="1025" y="626" class="t">⑥ 释放预扣</text>
+      <text x="1025" y="649" class="ts">seckill_rollback.lua</text>
+      <text x="1025" y="672" class="tr">released==null → ⑦ hasFailure</text>
+
+      <rect x="1210" y="600" width="290" height="70" rx="10" class="bxg"/>
+      <text x="1355" y="629" class="t">⑧ SADD 补一人一单</text>
+      <text x="1355" y="653" class="ts">DEL 预扣记录</text>
+
+      <path d="M750 74 V120" class="edge"/>
+      <path d="M920 151 H1080" class="edge"/>
+      <text x="1000" y="143" class="lbl">不完整</text>
+      <path d="M750 184 V228" class="edge"/>
+      <path d="M750 288 V336" class="edge"/>
+      <path d="M640 400 V436 H350 V470" class="edge"/>
+      <text x="495" y="428" class="lbl">是（未落库）</text>
+      <path d="M860 400 V436 H1150 V470" class="edge"/>
+      <text x="1005" y="428" class="lbl">否（已落库）</text>
+      <path d="M260 534 H200 V600" class="edge"/>
+      <text x="224" y="570" class="lbl">否</text>
+      <path d="M420 534 H535 V600" class="edge"/>
+      <text x="503" y="568" class="lbl">是</text>
+      <path d="M1080 534 H1025 V600" class="edge"/>
+      <text x="1043" y="568" class="lbl">是</text>
+      <path d="M1260 534 H1355 V600" class="edge"/>
+      <text x="1332" y="568" class="lbl">否</text>
+
+      <rect x="60" y="720" width="1440" height="120" rx="12" fill="#fbf6ee" stroke="#d8b98a" stroke-width="2"/>
+      <text x="84" y="757" style="font:600 16px 'Microsoft YaHei';fill:#8a5a1d">⑨ 每条记录外层再包一层 try/catch：上面任何一步抛异常 → hasFailure=true，跳过本条继续下一条</text>
+      <text x="84" y="789" style="font:400 15px 'Microsoft YaHei';fill:#6b5a3d">全方法：5 个 if、3 个 continue、2 个 catch —— 这棵树只存在于读者的脑子里，代码里没有任何一处能一眼看全它。</text>
+      <text x="84" y="819" style="font:400 15px 'Microsoft YaHei';fill:#a34e4e">尤其是 ⑤ 的 continue：它让 ⑥ 与 ② 变成同级，缩进具有欺骗性，是最容易埋雷的地方。</text>
+    </svg>
+    <figcaption>图 1 · 改造前：同一棵决策树，分散在 75 行过程代码里，出口有 7 个 + 2 个 catch</figcaption>
+  </figure>
+
+  <h3>2.2 原版的问题清单</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>说明</th></tr>
+    <tr><td>1</td><td>分支隐性</td><td>2 个业务决策（是否未落库 / 是否已取消）靠 continue 与 else 拼出层级，读代码要在脑内模拟执行</td></tr>
+    <tr><td>2</td><td>扩展要动主干</td><td>新增一种处置动作（如「重投超 N 次转告警」「支付超时主动关单」）必须往 75 行嵌套里插代码，回归范围是整方法</td></tr>
+    <tr><td>3</td><td>新状态静默漏处理</td><td>若订单出现 status=5（退款中），会默默落入 ⑧ 的 else 被当「已落库」补标记，没有任何显式信号</td></tr>
+    <tr><td>4</td><td>失败语义散落</td><td>①④⑦⑨ 四处手工置 hasFailure，逻辑相同、写法各异，新增分支极易漏标</td></tr>
+    <tr><td>5</td><td>可观测性弱</td><td>只有 hasFailure 一个布尔；「重投了几条、释放了几条」只能翻日志文本</td></tr>
+    <tr><td>6</td><td>难测</td><td>分支全部内嵌在 private 方法里，测任意一条分支都要搭 scan + Redis + Mapper + MQ 全套 mock</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 3. 改造后 ===================== -->
+<section>
+  <h2>三、改造后：同一棵树，摆到明面上</h2>
+
+  <h3>3.1 文件结构（🆕 新增 / 🔧 改造）</h3>
+  <div class="tree">src/main/java/com/hmdp/
+├── framework/rule/                        <span class="tag new">新增</span>自研规则树引擎（3 个文件，约 60 行，可整包搬走）
+│   ├── FlowNode.java                      节点接口：process（干活）+ next（分支）
+│   ├── AbstractFlowNode.java              抽象节点：loadData 钩子 + handle 必填
+│   └── FlowEngine.java                    while 驱动全树 + 100 步防环保护
+├── listener/reconcile/                    <span class="tag new">新增</span>对账规则树（9 个文件）
+│   ├── ReservationRequest.java            单条记录输入：key + Hash 字段（只读）
+│   ├── ReservationContext.java            一次处理的上下文（订单、解析值、结果）
+│   ├── RepairOutcome.java                 处置结果枚举：SKIPPED/REPOSTED/RELEASED/REPAIRED
+│   ├── ReservationRootNode.java           ① 元数据校验，不完整就 throw
+│   ├── OrderLookupNode.java               ②③⑥ 查订单 + <b>唯一的分支声明处 next()</b>
+│   ├── RepostNode.java                    ④ 未落库：重投 / 未到窗口跳过
+│   ├── ReleaseNode.java                   ⑦ 已取消：回滚脚本释放预扣
+│   ├── RepairNode.java                    ⑧ 已落库：补一人一单标记 + 清预扣记录
+│   └── ReconcileEndNode.java              统一出口：返回 RepairOutcome
+├── listener/SeckillReconciliationTask.java <span class="tag edit">改造</span>只保留：扫描循环 + 引擎驱动 + 结果统计
+└── (test) framework/rule/FlowEngineTest.java <span class="tag new">新增</span>引擎单测：顺序 / 分支 / 终点 / 防环</div>
+
+  <h3>3.2 改造后的决策树（图 2）</h3>
+  <figure>
+    <svg class="fig" viewBox="0 0 1500 900" role="img" aria-label="改造后：显式规则树流程图">
+      <defs>
+        <marker id="a2" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 Z" fill="#4d7773"/></marker>
+        <marker id="a2r" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 Z" fill="#bd5e5e"/></marker>
+      </defs>
+      <style>
+        .bx{fill:#fff;stroke:#9db8b3;stroke-width:2}
+        .bxo{fill:#fff5e8;stroke:#dda35c;stroke-width:2}
+        .bxg{fill:#edf9f1;stroke:#75b78c;stroke-width:2}
+        .bxr{fill:#fff0f0;stroke:#cf7676;stroke-width:2}
+        .bxb{fill:#edf6ff;stroke:#72a9d4;stroke-width:2}
+        .t{font:600 17px "Microsoft YaHei";fill:#173b39;text-anchor:middle}
+        .ts{font:400 14px "Microsoft YaHei";fill:#486460;text-anchor:middle}
+        .tr{font:400 13px "Microsoft YaHei";fill:#a34e4e;text-anchor:middle}
+        .lbl{font:600 14px "Microsoft YaHei";fill:#42615e;text-anchor:middle}
+        .edge{stroke:#4d7773;stroke-width:2.5;fill:none;marker-end:url(#a2)}
+        .edger{stroke:#bd5e5e;stroke-width:2.5;fill:none;marker-end:url(#a2r);stroke-dasharray:8 6}
+      </style>
+
+      <rect x="540" y="20" width="420" height="58" rx="10" class="bx"/>
+      <text x="750" y="55" class="t">SeckillReconciliationTask 扫描到一条预扣记录</text>
+
+      <rect x="560" y="118" width="380" height="56" rx="10" class="bxo"/>
+      <text x="750" y="152" class="t">FlowEngine.run(rootNode, req, new Context())</text>
+
+      <rect x="520" y="214" width="460" height="76" rx="10" class="bxb"/>
+      <text x="750" y="244" class="t">ReservationRootNode.handle()</text>
+      <text x="750" y="269" class="ts">解析 4 个字段写 Context；不完整 → throw</text>
+
+      <rect x="1140" y="220" width="320" height="64" rx="10" class="bxr"/>
+      <text x="1300" y="247" class="t">异常出口</text>
+      <text x="1300" y="270" class="ts">任务循环 catch → 单条失败</text>
+
+      <rect x="520" y="330" width="460" height="76" rx="10" class="bxb"/>
+      <text x="750" y="360" class="t">OrderLookupNode.handle()</text>
+      <text x="750" y="385" class="ts">selectById(orderId) 写 Context</text>
+
+      <rect x="520" y="446" width="460" height="80" rx="10" class="bxo"/>
+      <text x="750" y="475" class="t">OrderLookupNode.next() —— 唯一分支声明处</text>
+      <text x="750" y="502" class="ts">order == null ？  status == 4 ？  else</text>
+
+      <rect x="110" y="600" width="370" height="116" rx="10" class="bxb"/>
+      <text x="295" y="631" class="t">RepostNode.handle()</text>
+      <text x="295" y="657" class="ts">未到窗口 → SKIPPED</text>
+      <text x="295" y="681" class="ts">重投成功 → REPOSTED</text>
+      <text x="295" y="705" class="tr">同步发送失败 → throw</text>
+
+      <rect x="565" y="600" width="370" height="116" rx="10" class="bxb"/>
+      <text x="750" y="631" class="t">ReleaseNode.handle()</text>
+      <text x="750" y="657" class="ts">回滚脚本释放 → RELEASED</text>
+      <text x="750" y="705" class="tr">released == null → throw</text>
+
+      <rect x="1020" y="600" width="370" height="116" rx="10" class="bxb"/>
+      <text x="1205" y="631" class="t">RepairNode.handle()</text>
+      <text x="1205" y="657" class="ts">补一人一单标记 + 清预扣记录</text>
+      <text x="1205" y="681" class="ts">→ REPAIRED</text>
+
+      <rect x="280" y="770" width="940" height="64" rx="10" class="bxg"/>
+      <text x="750" y="808" class="t">ReconcileEndNode.handle() → return ctx.outcome（next = null）</text>
+
+      <path d="M750 78 V118" class="edge"/>
+      <path d="M750 174 V214" class="edge"/>
+      <path d="M980 252 H1140" class="edger"/>
+      <path d="M750 290 V330" class="edge"/>
+      <path d="M750 406 V446" class="edge"/>
+      <path d="M660 526 V565 H295 V600" class="edge"/>
+      <text x="478" y="558" class="lbl">order == null</text>
+      <path d="M750 526 V600" class="edge"/>
+      <text x="822" y="565" class="lbl">status == 4</text>
+      <path d="M840 526 V565 H1205 V600" class="edge"/>
+      <text x="1032" y="558" class="lbl">else</text>
+      <path d="M295 716 V742 H750 V770" class="edge"/>
+      <path d="M750 716 V770" class="edge"/>
+      <path d="M1205 716 V742 H750 V770" class="edge"/>
+    </svg>
+    <figcaption>图 2 · 改造后：分支只声明在 OrderLookupNode.next() 一处；失败出口统一为 throw，成功出口统一收口到 End + RepairOutcome</figcaption>
+  </figure>
+
+  <h3>3.3 关键代码</h3>
+  <p><b>① 唯一的分支声明处</b>（对比改造前图 1 里散落的 ②③⑥⑧）：</p>
+<pre><span class="cm">// OrderLookupNode.java —— 整棵树的岔路口，只有这三行</span>
+@Override
+public FlowNode&lt;ReservationRequest, ReservationContext, RepairOutcome&gt; next(
+        ReservationRequest request, ReservationContext context) {
+    <span class="hl">if (context.getOrder() == null) {</span>
+        return repostNode;    <span class="cm">// 未落库 → 重投分支</span>
+    }
+    <span class="hl">if (Integer.valueOf(4).equals(context.getOrder().getStatus())) {</span>
+        return releaseNode;   <span class="cm">// 已取消 → 释放分支</span>
+    }
+    return repairNode;        <span class="cm">// 已落库（含未来一切新状态）→ 显式可见</span>
+}</pre>
+
+  <p><b>② 跳过语义与失败语义的分离</b>（重投节点）：</p>
+<pre><span class="cm">// RepostNode.java —— 未到窗口是"正常跳过"，投递失败是"抛异常"，两类出口彻底分开</span>
+protected RepairOutcome handle(ReservationRequest request, ReservationContext context) {
+    if (!shouldRetry(request, context.getReservedAt())) {
+        context.setOutcome(<span class="hlg">RepairOutcome.SKIPPED</span>);   <span class="cm">// 对应原版 ③ continue</span>
+        return null;
+    }
+    try {
+        rocketMQTemplate.syncSend(orderTopic, JSONUtil.toJsonStr(retryOrder), 3000);
+    } catch (Exception e) {
+        throw new IllegalStateException("秒杀订单自动补偿重投失败 ...", e);  <span class="cm">// 对应原版 ④ hasFailure</span>
+    }
+    ...increment(retryCount); put(lastRetryAt);
+    context.setOutcome(<span class="hlg">RepairOutcome.REPOSTED</span>);
+    return null;
+}</pre>
+
+  <p><b>③ 任务侧只留「扫描 + 驱动 + 统计」</b>（对比原版 75 行嵌套）：</p>
+<pre><span class="cm">// SeckillReconciliationTask.java —— 每条记录的处置交给规则树</span>
+while (cursor.hasNext()) {
+    String reservationKey = cursor.next();
+    try {
+        Map&lt;Object, Object&gt; fields = stringRedisTemplate.opsForHash().entries(reservationKey);
+        ReservationContext context = new ReservationContext();
+        <span class="hl">RepairOutcome outcome = FlowEngine.run(</span>
+                reservationRootNode,
+                new ReservationRequest(reservationKey, fields),
+                context);
+        logOutcome(reservationKey, outcome, context);   <span class="cm">// 按枚举分类打日志</span>
+    } catch (Exception e) {
+        hasFailure = true;                              <span class="cm">// 失败口径与改造前完全一致</span>
+        log.error("处理秒杀预扣记录失败 reservationKey={}", reservationKey, e);
+    }
+}</pre>
+</section>
+
+<!-- ===================== 4. 装配 ===================== -->
+<section>
+  <h2>四、装配与数据流</h2>
+  <figure>
+    <svg class="fig" viewBox="0 0 1500 640" role="img" aria-label="规则树装配与数据流图">
+      <defs>
+        <marker id="a3" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 Z" fill="#4d7773"/></marker>
+      </defs>
+      <style>
+        .bx{fill:#fff;stroke:#9db8b3;stroke-width:2}
+        .bxo{fill:#fff5e8;stroke:#dda35c;stroke-width:2}
+        .bxg{fill:#edf9f1;stroke:#75b78c;stroke-width:2}
+        .bxb{fill:#edf6ff;stroke:#72a9d4;stroke-width:2}
+        .t{font:600 17px "Microsoft YaHei";fill:#173b39;text-anchor:middle}
+        .ts{font:400 13.5px "Microsoft YaHei";fill:#486460;text-anchor:middle}
+        .lbl{font:600 13.5px "Microsoft YaHei";fill:#42615e;text-anchor:middle}
+        .edge{stroke:#4d7773;stroke-width:2.5;fill:none;marker-end:url(#a3)}
+        .edged{stroke:#8aa8a3;stroke-width:2.2;fill:none;marker-end:url(#a3);stroke-dasharray:8 6}
+      </style>
+
+      <rect x="40" y="150" width="270" height="84" rx="10" class="bx"/>
+      <text x="175" y="184" class="t">SeckillReconciliationTask</text>
+      <text x="175" y="211" class="ts">@XxlJob 扫描循环 + 结果统计</text>
+
+      <rect x="370" y="150" width="190" height="84" rx="10" class="bxo"/>
+      <text x="465" y="184" class="t">FlowEngine</text>
+      <text x="465" y="211" class="ts">while + 防环</text>
+
+      <rect x="620" y="150" width="220" height="84" rx="10" class="bxb"/>
+      <text x="730" y="184" class="t">ReservationRootNode</text>
+      <text x="730" y="211" class="ts">① 校验写 Context</text>
+
+      <rect x="900" y="150" width="230" height="84" rx="10" class="bxb"/>
+      <text x="1015" y="184" class="t">OrderLookupNode</text>
+      <text x="1015" y="211" class="ts">②③⑥ 查库 + 分支</text>
+
+      <rect x="1210" y="30" width="270" height="74" rx="10" class="bxb"/>
+      <text x="1345" y="58" class="t">RepostNode</text>
+      <text x="1345" y="83" class="ts">④ 重投 / 未到窗口 SKIPPED</text>
+
+      <rect x="1210" y="155" width="270" height="74" rx="10" class="bxb"/>
+      <text x="1345" y="183" class="t">ReleaseNode</text>
+      <text x="1345" y="208" class="ts">⑦ seckill_rollback.lua</text>
+
+      <rect x="1210" y="280" width="270" height="74" rx="10" class="bxb"/>
+      <text x="1345" y="308" class="t">RepairNode</text>
+      <text x="1345" y="333" class="ts">⑧ SADD + DEL</text>
+
+      <rect x="620" y="440" width="510" height="84" rx="10" class="bxg"/>
+      <text x="875" y="474" class="t">ReconcileEndNode</text>
+      <text x="875" y="501" class="ts">返回 RepairOutcome；next = null</text>
+
+      <path d="M310 192 H370" class="edge"/>
+      <text x="340" y="183" class="lbl">run()</text>
+      <path d="M560 192 H620" class="edge"/>
+      <text x="590" y="183" class="lbl">start</text>
+      <path d="M840 192 H900" class="edge"/>
+      <text x="870" y="183" class="lbl">next()</text>
+
+      <path d="M1130 170 H1170 V67 H1210" class="edge"/>
+      <text x="1150" y="118" class="lbl">order == null</text>
+      <path d="M1130 192 H1210" class="edge"/>
+      <text x="1168" y="182" class="lbl">status == 4</text>
+      <path d="M1130 214 H1170 V317 H1210" class="edge"/>
+      <text x="1150" y="268" class="lbl">else</text>
+
+      <path d="M1210 67 H1150" class="edge"/>
+      <path d="M1210 192 H1150" class="edge"/>
+      <path d="M1210 317 H1150" class="edge"/>
+      <path d="M1150 67 V482 H1130" class="edge"/>
+
+      <path d="M620 482 H175 V234" class="edged"/>
+      <text x="400" y="470" class="lbl">RepairOutcome → 日志分类</text>
+
+      <text x="750" y="600" class="ts">所有节点为 @Service 单例，依赖全部 @Resource 注入（启动期装配一次）；运行时每条记录 new 一个 Request + Context，节点本身无状态。</text>
+    </svg>
+    <figcaption>图 3 · 装配与数据流：Task → FlowEngine → Root → Lookup →（三个处置节点）→ End，结果以枚举形式回到 Task</figcaption>
+  </figure>
+
+  <div class="warn"><b>五条铁律（照搬模板时必须守住）：</b>① 节点单例，一次请求的数据绝不放成员变量，全部走 Context；② 节点里只 throw 不 catch，业务异常统一冒泡到任务循环；③ 装配只做一次（启动期 @Resource / @Bean 注入）；④ 一次请求一个 Context，在循环里 new；⑤ 引擎 100 步上限防环，装配错误会直接炸出来而不是死循环。</div>
+</section>
+
+<!-- ===================== 5. 真值表 ===================== -->
+<section>
+  <h2>五、行为对照真值表（证明「行为零变化」）</h2>
+  <table>
+    <tr><th>输入状态</th><th>改造前走向</th><th>改造后走向</th><th>结果</th></tr>
+    <tr><td>元数据缺字段 / 非数字</td><td>① if → hasFailure + continue</td><td>ReservationRootNode throw → 循环 catch</td><td>单条失败</td></tr>
+    <tr><td>订单未落库 + 未到重投窗口</td><td>③ if → continue（静默）</td><td>RepostNode → SKIPPED</td><td>跳过，不标失败</td></tr>
+    <tr><td>订单未落库 + 到窗口 + MQ 成功</td><td>④ syncSend + 记 retryCount/lastRetryAt</td><td>RepostNode → REPOSTED</td><td>重投成功</td></tr>
+    <tr><td>订单未落库 + 到窗口 + MQ 失败</td><td>④ catch → hasFailure</td><td>RepostNode throw → 循环 catch</td><td>单条失败</td></tr>
+    <tr><td>订单已落库 + status=4 + 释放成功</td><td>⑥⑦ released != null → log.info</td><td>ReleaseNode → RELEASED</td><td>释放成功</td></tr>
+    <tr><td>订单已落库 + status=4 + 释放为 null</td><td>⑦ if → hasFailure</td><td>ReleaseNode throw → 循环 catch</td><td>单条失败</td></tr>
+    <tr><td>订单已落库 + 其它状态</td><td>⑧ else → SADD + DEL</td><td>RepairNode → REPAIRED</td><td>修复成功</td></tr>
+    <tr><td>任意步骤抛异常</td><td>⑨ 外层 catch → hasFailure</td><td>任务循环 catch（位置不变）</td><td>单条失败</td></tr>
+  </table>
+  <p class="ts">Redis Key 拼接、回滚脚本（seckill_rollback.lua）、MQ 发送参数、重试窗口条件（staleSeconds / retryIntervalSeconds）、失败计数与 XXL-JOB 抛异常口径，全部逐字保留。</p>
+</section>
+
+<!-- ===================== 6. 对比总表 ===================== -->
+<section>
+  <h2>六、改造前后总对比</h2>
+  <table>
+    <tr><th>维度</th><th>改造前（if-else）</th><th>改造后（规则树）</th></tr>
+    <tr><td>分支位置</td><td>散落 75 行：5 个 if / 3 个 continue / 2 个 catch</td><td>集中 1 处：<code class="inline">OrderLookupNode.next()</code> 三行</td></tr>
+    <tr><td>阅读方式</td><td>过程式，需脑内执行 continue/else 还原控制流</td><td>声明式，决策树即代码结构，一眼看全</td></tr>
+    <tr><td>扩展新处置动作</td><td>改主干、碰嵌套、重测整方法</td><td>新增节点 + <code class="inline">next()</code> 加一行，老分支零回归</td></tr>
+    <tr><td>新订单状态</td><td>静默落入 else（被当已落库修复）</td><td>显式返回 repairNode 或新增分支，语义可见</td></tr>
+    <tr><td>失败语义</td><td>四处手工置 hasFailure，写法各异</td><td>节点只 throw，循环统一 catch（口径不变）</td></tr>
+    <tr><td>日志/统计</td><td>零散 log + 一个 hasFailure 布尔</td><td>RepairOutcome 枚举：重投/释放/修复/跳过分类可数</td></tr>
+    <tr><td>单元测试</td><td>只能整方法测，mock 全套依赖</td><td>每节点独立可测；引擎自带单测（顺序/分支/防环）</td></tr>
+    <tr><td>失败语义与性能</td><td>基准</td><td>每条多一次 while 引擎循环 + Context 分配（纳秒级）；瓶颈仍在 scan + 查库，实测无感</td></tr>
+    <tr><td>调试</td><td>线性断点，直观</td><td>需跟 next() 跳转，调用栈多一层 FlowEngine</td></tr>
+    <tr><td>代码量</td><td>1 个方法 75 行</td><td>+12 个文件（引擎 3 + 节点 9），Task 本身更薄</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 7. 收益与代价 ===================== -->
+<section>
+  <h2>七、收益与代价（诚实版）</h2>
+  <h3>收益（按含金量排序）</h3>
+  <ol>
+    <li><b>扩展成本</b>：新增「重投超 N 次转人工告警」「支付超时但未关单」这类补偿，只需加节点 + 改一行 next()，主干与既有分支零回归</li>
+    <li><b>分支显式化</b>：对账是长期在后台跑的兜底逻辑，最怕「顺手改了 else」埋雷；现在改分支先看 next()，新状态不会被静默吞掉</li>
+    <li><b>可观测性</b>：RepairOutcome 让 XXL-JOB 从「成功/失败」升级为「重投 X 条、释放 Y 条、修复 Z 条、跳过 W 条」</li>
+    <li><b>复用资产</b>：<code class="inline">framework/rule</code> 与业务解耦，将来其它多分支流水线可整包搬走</li>
+    <li><b>面试叙事</b>：有完整的「为什么用树不用链、为什么不继续 if-else、代价是什么」故事</li>
+  </ol>
+  <h3>代价（同样要说清楚）</h3>
+  <ol>
+    <li>类数量 +12，读代码要先看装配关系（next 指向）</li>
+    <li>调用栈变深：FlowEngine.run → node.process → handle，单步调试略绕</li>
+    <li>分支只有 2~3 个的简单场景<b>不该</b>上规则树，本任务有 7 个出口才值得</li>
+    <li>节点单例约束强：写代码时忘记把数据放 Context 就会出并发 Bug</li>
+    <li>收益兑现依赖「分支还会继续长」；若补偿逻辑就此冻结，改造票价收不回</li>
+  </ol>
+  <div class="good"><b>结论：</b>这是全项目最值得用规则树的一处（数据状态驱动的多出口决策）。但它不是「必须改」——买的是未来的扩展性、可观测性和一段能讲清楚的设计决策。</div>
+</section>
+
+<!-- ===================== 8. 面试问答 ===================== -->
+<section>
+  <h2>八、面试问答（改造后能讲什么）</h2>
+  <div class="qa"><b>Q1：为什么用规则树不是责任链？</b><br>处置动作由订单状态「分叉」——未落库去重投、已取消去释放、已落库去补标记，是树形；责任链适合「顺序全过、一关不过就断」的校验场景，这里没有固定顺序关卡，用链反而表达不了分支。</div>
+  <div class="qa"><b>Q2：怎么保证改造行为不变？</b><br>先列出真值表（输入状态 → 原路径 → 新节点），逐条对齐；Redis Key 拼接、回滚脚本、MQ 参数、重试窗口、失败计数口径全部保留；失败统计仍是「单条 catch 累计 hasFailure，最后抛异常给 XXL-JOB」。</div>
+  <div class="qa"><b>Q3：引擎会不会死循环或装配错误？</b><br>FlowEngine 有 MAX_STEPS=100 防环保护，成环直接抛 IllegalStateException；单测覆盖顺序执行、分支跳转、终点收口、防环四种情况。</div>
+  <div class="qa"><b>Q4：节点是单例，线程安全吗？</b><br>安全。节点无状态，所有一次请求的数据放在每次循环 new 出来的 ReservationContext 里，类里不存任何请求级成员变量（五条铁律之一）。</div>
+  <div class="qa"><b>Q5：更简单的重构行不行？</b><br>行。把重投/释放/修复抽成三个方法也能消掉嵌套，但「分支决策」仍藏在方法内的 if 里；规则树多买的是「分支声明独立成层 + 统一出口」。选不选取决于分支会不会继续增长——这也是改造前要先想清楚的问题。</div>
+</section>
+
+<!-- ===================== 9. 附录 ===================== -->
+<section>
+  <h2>九、附录：引擎完整源码（约 60 行，可整包搬走）</h2>
+<pre><span class="cm">// FlowNode.java —— 节点接口</span>
+public interface FlowNode&lt;T, C, R&gt; {
+    R process(T request, C context) throws Exception;          <span class="cm">// 本节点业务</span>
+    FlowNode&lt;T, C, R&gt; next(T request, C context) throws Exception; <span class="cm">// 下一跳（null = 终点，分支写这）</span>
+}
+
+<span class="cm">// AbstractFlowNode.java —— 抽象节点：定死"先补数据、再干活"</span>
+public abstract class AbstractFlowNode&lt;T, C, R&gt; implements FlowNode&lt;T, C, R&gt; {
+    @Override
+    public R process(T request, C context) throws Exception {
+        loadData(request, context);      <span class="cm">// 钩子：默认空</span>
+        return handle(request, context); <span class="cm">// 子类必填</span>
+    }
+    protected void loadData(T request, C context) throws Exception { }
+    protected abstract R handle(T request, C context) throws Exception;
+}
+
+<span class="cm">// FlowEngine.java —— while 驱动全树 + 防环</span>
+public final class FlowEngine {
+    private static final int MAX_STEPS = 100;
+    private FlowEngine() { }
+
+    public static &lt;T, C, R&gt; R run(FlowNode&lt;T, C, R&gt; start, T request, C context) throws Exception {
+        FlowNode&lt;T, C, R&gt; node = start;
+        R result = null;
+        int step = 0;
+        while (node != null) {
+            if (++step &gt; MAX_STEPS) {
+                throw new IllegalStateException("规则树疑似成环（超过 " + MAX_STEPS + " 步）");
+            }
+            result = node.process(request, context);
+            node = node.next(request, context);
+        }
+        return result;
+    }
+}</pre>
+</section>
+
+<footer>
+  NearGo · 秒杀对账任务规则树改造对比 · 手绘 SVG 离线可看 · 改造范围：SeckillReconciliationTask 单条预扣记录处置逻辑
+</footer>
+
+</div>
+</body>
+</html>
