@@ -32,10 +32,13 @@ NearGo 提供商铺查询、附近商铺、优惠券秒杀、订单支付和超�
 - [优化五：XXL-JOB 对账、补偿与最终一致性](#优化五xxl-job-对账补偿与最终一致性)
 - [优化六：Redis 滑动窗口限流](#优化六redis-滑动窗口限流)
 - [优化七：Redis GEO 附近商铺检索](#优化七redis-geo-附近商铺检索)
+- [优化八：秒杀券详情页两级缓存](#优化八秒杀券详情页两级缓存)
+- [优化九：对账任务规则树重构](#优化九对账任务规则树重构)
 - [故障场景与一致性闭环](#故障场景与一致性闭环)
 - [压测结果与数据口径](#压测结果与数据口径)
 - [快速启动](#快速启动)
 - [实现边界](#实现边界)
+- [更新记录](#更新记录)
 
 ## 系统架构与秒杀主链路
 
@@ -82,6 +85,8 @@ flowchart LR
 | 热点读压力 | Caffeine + Redis 两级缓存 | 先命中进程内内存，降低 Redis 访问 | 多实例本地缓存存在短暂不一致 |
 | 恶意刷接口 | Redis ZSet + Lua + AOP 滑动窗口 | 多实例共享计数，可按 IP/用户限流 | ZSet 比固定窗口占用更多内存和计算 |
 | 附近商铺查询 | Redis GEO 检索排序 + MySQL 补详情 | 避免数据库直接做大范围距离排序 | GEO 数据需要单独初始化和维护 |
+| 秒杀券详情读压力 | Caffeine 5s + Redis 30s 两级缓存，库存字段实时读取 | 详情页极热请求先命中进程内内存 | 详情信息允许短时间旧值，库存不进缓存 |
+| 对账补偿扩展性 | 规则树编排「校验 → 查库 → 重投/释放/补标记 → 收口」 | 分支集中声明，新增分支不改任务主流程 | 增加一层节点抽象，简单逻辑也按节点组织 |
 
 ---
 
@@ -133,7 +138,7 @@ WHERE voucher_id = ? AND stock > 0;
 
 - 接入层：Lua 使用 Redis Set 判断用户是否已预扣；
 - 消费层：按订单 ID 查询，过滤同一消息的重复消费；
-- 业务层：再次查询 `user_id + voucher_id`，过滤不同消息造成的重复业务订单；
+- 业务层：再次查询 `user_id + voucher_id`，过滤不同消息造成的重复业务订单；已取消（`status=4`）的历史订单不计入重复——取消时已释放库存与资格，允许用户重新抢购；
 - 并发层：使用用户维度 Redisson 锁，避免同一用户消息并发穿过查询；
 - 数据库层：当前代码没有 `(user_id, voucher_id)` 唯一索引，这是仍需补强的最后一道约束。
 
@@ -290,7 +295,9 @@ RocketMQ 提供的是可靠投递基础，不应把普通消费理解为业务 E
 
 该方案用“允许短时间旧数据”换取热点接口的稳定响应。因此它不适合余额、库存等强一致性数据。
 
-重要边界：当前 `/shop/{id}` 使用逻辑过期查询，缓存 Key 不存在时会直接返回空，不会自动回源数据库。因此压测前必须预热 `cache:shop:{id}`；测试击穿时应只修改 Value 内的 `expireTime`，不能直接删除 Key。
+重要边界：当前 `/shop/{id}` 的读取行为——Value 命中且未逻辑过期时直接返回；Value 命中但已逻辑过期时先返回旧值，并由抢到 `lock:shop:{id}` 的线程异步重建；Key 完全不存在时（未预热或负缓存过期）回源数据库一次并回填，数据库也不存在的数据写入短 TTL 空值。测试击穿时应只修改 Value 内的 `expireTime`，不要直接删除 Key。
+
+逻辑过期 Key 在写入时额外带 **24 小时物理 TTL 兜底**，避免长期无人访问的 Key 永不过期、无界占用内存；物理过期后按 Key 缺失路径自动回源重建。该能力由 `CacheClient` 统一提供。
 
 ### 3. 缓存穿透：为什么使用缓存空值
 
@@ -448,6 +455,8 @@ XXL-JOB Admin 根据 Cron 触发任务
 4. **任务执行异常**：抛出异常，使 XXL-JOB Admin 记录失败，并由配置的失败重试策略再次调度；
 5. **同一记录刚重投过**：通过 `lastRetryAt` 和重试间隔避免每轮任务都重复发送。
 
+上述单条记录的处置分支由规则树节点显式声明，任务只负责扫描、驱动与统计，见[优化九](#优化九对账任务规则树重构)。
+
 代码：[SeckillReconciliationTask.java](src/main/java/com/hmdp/listener/SeckillReconciliationTask.java)、[XXL-JOB 对账说明](docs/architecture/xxl-job-reconciliation.md)
 
 ### 4. 为什么重投必须复用原订单 ID
@@ -581,6 +590,111 @@ GEO 集合只保存位置检索所需的成员和坐标，不适合复制全部�
 
 ---
 
+## 优化八：秒杀券详情页两级缓存
+
+### 1. 要解决什么问题
+
+秒杀开始前后，详情页会被高频刷新。如果每次都查 MySQL，热点数据会反复回源；如果只加一层 Redis，极热请求仍会集中访问同一个远程 Key。
+
+`GET /voucher/seckill/{id}` 采用与券列表一致的两级缓存思路，并把"详情信息"和"库存"分开处理。
+
+### 2. 缓存结构与读取流程
+
+```text
+Caffeine 本地缓存（5 秒，最多 1000 条）
+  → Redis 分布式缓存（30 秒，缓存券信息 + 秒杀信息 DTO）
+    → MySQL（voucher + seckill_voucher）
+  → 库存字段不进缓存：每次实时读取 seckill:stock:{voucherId}
+```
+
+1. L1 命中：直接返回，并用 Redis 实时库存覆盖 `stock` 字段；
+2. L1 未命中、L2 命中：反序列化后回填 L1，并覆盖实时库存；
+3. L1、L2 均未命中：查询 MySQL 组装 `SeckillVoucherDetailDTO`，回填 L2 与 L1；
+4. 数据库不存在的 ID：写入短 TTL 空值负缓存，避免不存在的 ID 反复穿透。
+
+代码：[VoucherController.java](src/main/java/com/hmdp/controller/VoucherController.java)、[VoucherServiceImpl.java](src/main/java/com/hmdp/service/impl/VoucherServiceImpl.java)、[SeckillVoucherDetailDTO.java](src/main/java/com/hmdp/dto/SeckillVoucherDetailDTO.java)
+
+### 3. 为什么库存不进缓存
+
+详情页的标题、规则、起止时间等字段几乎不变，适合缓存；库存是秒杀期间变化最频繁的字段，一旦进入缓存就会与 Redis 预扣库存产生偏差。因此缓存对象只保存详情信息，`stock` 字段每次从 `seckill:stock:{voucherId}` 实时读取。
+
+### 4. 一致性边界
+
+- 详情信息采用短 TTL（5 秒 / 30 秒）限制不一致窗口；
+- 新增秒杀券时会主动失效券列表的两级缓存，详情缓存依赖短 TTL 收敛；
+- 尚未实现跨实例的主动失效广播，多实例下依赖 TTL 收敛。
+
+### 5. 高频面试追问
+
+**问：为什么库存不缓存 1 秒，而是每次实时读？**
+
+库存用 1 秒缓存仍会引入"缓存库存与预扣库存不一致"的解释成本；读一次 Redis 字符串成本很低，实时读取更简单可靠，把它当作强一致展示字段处理。
+
+**问：负缓存为什么也要设置短 TTL？**
+
+负缓存用于防穿透，但保持时间过长会延迟新建数据的可见性；短 TTL 是防穿透能力和数据可见性之间的折中。
+
+---
+
+## 优化九：对账任务规则树重构
+
+### 1. 改造前的痛点
+
+`SeckillReconciliationTask` 中单条预扣记录的处置逻辑集中在同一个方法里，靠 5 个 `if`、3 个 `continue` 和 2 个 `catch` 组织分支：
+
+- "未到重投窗口静默跳过"依赖 `continue` 表达，分支是隐性的；
+- 查库、重投、释放、补标记的过程式代码与扫描、统计逻辑混在一起；
+- 新增一种处置策略需要改动任务主流程，且难以单独测试。
+
+### 2. 规则树如何组织
+
+项目新增了一个轻量规则树引擎（`com.hmdp.framework.rule`）和一组对账节点，把单条记录的处理流程显式拆成"校验 → 查库 → 处置 → 收口"：
+
+```mermaid
+flowchart LR
+    R[ReservationRootNode<br/>校验元数据并写入上下文] --> L[OrderLookupNode<br/>查库并按订单状态分支]
+    L -->|订单未落库| P[RepostNode<br/>原订单 ID 重投]
+    L -->|订单已取消| S[ReleaseNode<br/>幂等释放预扣]
+    L -->|订单已落库| F[RepairNode<br/>补标记并清流水]
+    P --> E[ReconcileEndNode<br/>统一收口]
+    S --> E
+    F --> E
+```
+
+1. `ReservationRootNode`：校验预扣元数据完整性并写入上下文，不完整时抛异常，由任务按单条失败统计；
+2. `OrderLookupNode`：查库并按订单状态决定下一跳，三个分支集中声明在这一个方法里；
+3. `RepostNode`：未落库且到达重投窗口时复用原订单 ID 重投，未到窗口产出 `SKIPPED`；
+4. `ReleaseNode`：订单已取消时，用共用回滚脚本幂等释放；
+5. `RepairNode`：订单已落库时，补回一人一单标记并清理预扣记录；
+6. `ReconcileEndNode`：统一收口，返回 `RepairOutcome` 供任务统一日志与统计。
+
+引擎带 100 步上限防止装配错误导致成环；节点是无状态单例，每次调用的数据通过 `ReservationContext` 传递。
+
+### 3. 改造收益
+
+- 分支从 `continue` 拼出的隐性逻辑，变为一处显式声明；
+- 处置结果统一为 `REPOSTED / RELEASED / REPAIRED / SKIPPED`，任务侧按结果统一记录日志；
+- 引擎可独立单测（顺序执行、分支跳转、成环保护），见 `FlowEngineTest`；
+- 行为与改造前逐条对齐：Redis 操作、RocketMQ 重投和脚本调用保持不变。
+
+代码：[FlowEngine.java](src/main/java/com/hmdp/framework/rule/FlowEngine.java)、[OrderLookupNode.java](src/main/java/com/hmdp/listener/reconcile/OrderLookupNode.java)、[SeckillReconciliationTask.java](src/main/java/com/hmdp/listener/SeckillReconciliationTask.java)、[FlowEngineTest.java](src/test/java/com/hmdp/framework/rule/FlowEngineTest.java)、[规则树改造对比](docs/interview/NearGo-对账任务规则树改造对比.html)
+
+### 4. 高频面试追问
+
+**问：为什么不引入状态机或工作流框架？**
+
+当前只有一条主链路加三个处置分支，引入工作流框架的配置和运维成本高于收益；规则树用普通 Java 类表达、节点即 Spring Bean，后续扩展分支只需增加节点。
+
+**问：规则树和责任链模式的区别是什么？**
+
+责任链通常每个节点处理一部分并向后传递，是否继续由节点自行决定；这里的节点通过 `next()` 显式声明下一跳，分支是一棵可见的树，并有明确的终点与结果产出。
+
+**问：单例节点如何保证线程安全？**
+
+节点本身不持有请求级状态，所有调用中的数据都放在每次新建的 `ReservationContext` 和只读的 `ReservationRequest` 中。
+
+---
+
 ## 故障场景与一致性闭环
 
 | 故障点 | 可能后果 | 当前处理 | 是否完全闭环 |
@@ -636,6 +750,8 @@ GEO 集合只保存位置检索所需的成员和坐标，不适合复制全部�
 | 最终一致性 | 实时补偿处理已知失败，定时对账处理未知或长期异常 | 补偿幂等、重试上限、告警与人工处理 |
 | 滑动窗口 | Redis ZSet 保存窗口内请求，Lua 原子清理、统计和写入 | 固定窗口、令牌桶、内存成本 |
 | Redis GEO | Redis 做地理检索和排序，MySQL 批量补详情 | Redis 版本、GEO 初始化和空间数据库选择 |
+| 秒杀详情缓存 | Caffeine 5s + Redis 30s 两级缓存，库存字段实时读取不缓存 | 短 TTL 一致性、负缓存、跨实例失效 |
+| 规则树重构 | 对账任务按「校验 → 查库 → 处置 → 收口」节点编排，分支集中声明 | 规则树与责任链/状态机区别、单例节点线程安全 |
 
 ## 项目结构
 
@@ -645,7 +761,8 @@ src/main/java/com/hmdp
 ├── aspect          # Redis 滑动窗口限流切面
 ├── config          # Redis、Redisson、MyBatis、XXL-JOB 配置
 ├── controller      # HTTP 接口
-├── listener        # RocketMQ 消费者与 XXL-JOB 对账任务
+├── framework       # 自研规则树引擎（FlowNode / FlowEngine）
+├── listener        # RocketMQ 消费者、XXL-JOB 对账任务与对账规则树节点
 ├── service         # 商铺、优惠券、订单业务
 └── utils           # 缓存、ID、锁和 Redis Key 工具
 
@@ -723,11 +840,24 @@ Cron: 0 * * * * ?
 - 当前使用普通 RocketMQ 同步发送，不是 RocketMQ 事务消息；
 - 消费语义按“消息可能重复”设计，通过业务幂等处理，不宣称端到端 Exactly Once；
 - 当前数据库没有声明 `(user_id, voucher_id)` 唯一索引，一人一单主要依赖 Lua、业务校验和用户锁；
-- `/shop/{id}` 当前是预热型逻辑过期模式，缓存 Key 不存在时不会自动查询 MySQL；
-- Redis 空值缓存能力已封装，但没有与店铺逻辑过期路径自动合并；
+- `/shop/{id}` 的逻辑过期 Value 带 24 小时物理 TTL 兜底，缓存 Key 完全不存在时会回源一次并回填，命中的负缓存不在回源之列；
+- 秒杀券详情缓存以 5 秒 / 30 秒短 TTL 收敛一致性，未实现跨实例主动失效广播；
 - Caffeine 本地缓存通过短 TTL 控制不一致窗口，尚未实现跨实例失效广播；
 - XXL-JOB 补偿代码已经接入，Admin 端故障转移和失败重试仍需部署后端到端验证；
 - 压测数据来自本地单机短时实验，只用于证明逻辑和对比趋势，不代表生产集群容量。
+
+## 更新记录
+
+| 日期 | 提交 | 内容 |
+|---|---|---|
+| 2026-09-21 | `feat(voucher)` | 新增秒杀券详情页两级缓存与实时库存读取 |
+| 2026-09-21 | `chore(config)` | 补充本地运行默认 XXL-JOB AccessToken |
+| 2026-09-22 | `fix(seckill)` | 回滚脚本合并为 `seckill_rollback.lua`；已取消订单支持重新抢购 |
+| 2026-09-22 | `fix(cache)` | 逻辑过期增加物理 TTL 兜底，缺失 Key 自动回源 |
+| 2026-09-23 | `docs` | 新增面试官提问清单、存储数据结构与真实面经 |
+| 2026-09-29 | `docs` | 新增 Java 版本特性、简历问答与 HTML 文档 |
+| 2026-10-09 | `refactor(reconcile)` | 对账任务规则树重构与引擎单测 |
+| 2026-10-09 | `docs(readme)` | 补充新功能说明与更新记录 |
 
 ## 参考资料
 
@@ -744,4 +874,4 @@ Cron: 0 * * * * ?
 
 ## 开发时间说明
 
-项目于 **2025.08—2026.01** 期间完成开发与持续优化，并于 **2026.09** 完成代码整理、文档补充及 GitHub 仓库迁移。
+项目于 **2025.08—2026.01** 期间完成开发与持续优化，于 **2026.09** 完成代码整理、文档补充及 GitHub 仓库迁移，并于 **2026.09—2026.10** 继续补充秒杀详情缓存、缓存读取健壮性与对账任务规则树重构。
