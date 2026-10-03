@@ -35,6 +35,9 @@ import java.util.Map;
 @Slf4j
 public class SeckillReconciliationTask {
 
+    /** 单条记录的规则树步数上限：当前最长路径为 4 个节点，留出冗余防止分支装配错误导致路径爆炸。 */
+    private static final int RECONCILE_MAX_STEPS = 16;
+
     @Resource
     private StringRedisTemplate stringRedisTemplate;
     @Resource
@@ -85,7 +88,8 @@ public class SeckillReconciliationTask {
                     RepairOutcome outcome = FlowEngine.run(
                             reservationRootNode,
                             new ReservationRequest(reservationKey, fields),
-                            context);
+                            context,
+                            RECONCILE_MAX_STEPS);
                     logOutcome(reservationKey, outcome, context);
                 } catch (Exception e) {
                     hasFailure = true;

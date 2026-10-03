@@ -14,4 +14,9 @@ public interface FlowNode<T, C, R> {
 
     /** 下一跳：返回 null 表示到达终点。分支判断写在这里。 */
     FlowNode<T, C, R> next(T request, C context) throws Exception;
+
+    /** 节点名称：用于判环与超限异常中的路径展示，默认取类名，可重写。 */
+    default String name() {
+        return getClass().getSimpleName();
+    }
 }
