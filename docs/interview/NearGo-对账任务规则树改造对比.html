@@ -59,7 +59,7 @@
 <header class="hero">
   <h1>秒杀对账任务规则树改造 · 前后对比</h1>
   <p>SeckillReconciliationTask：把「5 个 if、3 个 continue、2 个 catch」拼出来的隐性决策树，改成节点显式声明分支的规则树 —— 功能与行为完全不变，改的是「谁能一眼看懂、加分支要动哪里」。</p>
-  <div class="meta">项目：NearGo（黑马点评改造版）&nbsp;｜&nbsp;改造对象：单条预扣记录的处置逻辑&nbsp;｜&nbsp;引擎：<code style="color:#fff">com.hmdp.framework.rule</code>（自研，纯 Java 8 + Spring 注解，约 60 行）</div>
+  <div class="meta">项目：NearGo（黑马点评改造版）&nbsp;｜&nbsp;改造对象：单条预扣记录的处置逻辑&nbsp;｜&nbsp;引擎：<code style="color:#fff">com.hmdp.framework.rule</code>（自研，纯 Java 8 + Spring 注解，约 120 行）</div>
 </header>
 
 <div class="cards">
@@ -222,10 +222,10 @@ while (cursor.hasNext()) {
 
   <h3>3.1 文件结构（🆕 新增 / 🔧 改造）</h3>
   <div class="tree">src/main/java/com/hmdp/
-├── framework/rule/                        <span class="tag new">新增</span>自研规则树引擎（3 个文件，约 60 行，可整包搬走）
+├── framework/rule/                        <span class="tag new">新增</span>自研规则树引擎（3 个文件，约 120 行，可整包搬走）
 │   ├── FlowNode.java                      节点接口：process（干活）+ next（分支）
 │   ├── AbstractFlowNode.java              抽象节点：loadData 钩子 + handle 必填
-│   └── FlowEngine.java                    while 驱动全树 + 100 步防环保护
+│   └── FlowEngine.java                    while 驱动全树 + 访问标记判环 + 可配置步数上限
 ├── listener/reconcile/                    <span class="tag new">新增</span>对账规则树（9 个文件）
 │   ├── ReservationRequest.java            单条记录输入：key + Hash 字段（只读）
 │   ├── ReservationContext.java            一次处理的上下文（订单、解析值、结果）
@@ -237,7 +237,7 @@ while (cursor.hasNext()) {
 │   ├── RepairNode.java                    ⑧ 已落库：补一人一单标记 + 清预扣记录
 │   └── ReconcileEndNode.java              统一出口：返回 RepairOutcome
 ├── listener/SeckillReconciliationTask.java <span class="tag edit">改造</span>只保留：扫描循环 + 引擎驱动 + 结果统计
-└── (test) framework/rule/FlowEngineTest.java <span class="tag new">新增</span>引擎单测：顺序 / 分支 / 终点 / 防环</div>
+└── (test) framework/rule/FlowEngineTest.java <span class="tag new">新增</span>引擎单测：顺序 / 分支 / 终点 / 判环 / 步数上限</div>
 
   <h3>3.2 改造后的决策树（图 2）</h3>
   <figure>
@@ -449,7 +449,7 @@ while (cursor.hasNext()) {
     <figcaption>图 3 · 装配与数据流：Task → FlowEngine → Root → Lookup →（三个处置节点）→ End，结果以枚举形式回到 Task</figcaption>
   </figure>
 
-  <div class="warn"><b>五条铁律（照搬模板时必须守住）：</b>① 节点单例，一次请求的数据绝不放成员变量，全部走 Context；② 节点里只 throw 不 catch，业务异常统一冒泡到任务循环；③ 装配只做一次（启动期 @Resource / @Bean 注入）；④ 一次请求一个 Context，在循环里 new；⑤ 引擎 100 步上限防环，装配错误会直接炸出来而不是死循环。</div>
+  <div class="warn"><b>五条铁律（照搬模板时必须守住）：</b>① 节点单例，一次请求的数据绝不放成员变量，全部走 Context；② 节点里只 throw 不 catch，业务异常统一冒泡到任务循环；③ 装配只做一次（启动期 @Resource / @Bean 注入）；④ 一次请求一个 Context，在循环里 new；⑤ 引擎按访问标记判环（同一节点重访即报环路），并可配置步数上限兜底路径爆炸。</div>
 </section>
 
 <!-- ===================== 5. 真值表 ===================== -->
@@ -480,7 +480,7 @@ while (cursor.hasNext()) {
     <tr><td>新订单状态</td><td>静默落入 else（被当已落库修复）</td><td>显式返回 repairNode 或新增分支，语义可见</td></tr>
     <tr><td>失败语义</td><td>四处手工置 hasFailure，写法各异</td><td>节点只 throw，循环统一 catch（口径不变）</td></tr>
     <tr><td>日志/统计</td><td>零散 log + 一个 hasFailure 布尔</td><td>RepairOutcome 枚举：重投/释放/修复/跳过分类可数</td></tr>
-    <tr><td>单元测试</td><td>只能整方法测，mock 全套依赖</td><td>每节点独立可测；引擎自带单测（顺序/分支/防环）</td></tr>
+    <tr><td>单元测试</td><td>只能整方法测，mock 全套依赖</td><td>每节点独立可测；引擎自带单测（顺序/分支/判环/上限）</td></tr>
     <tr><td>失败语义与性能</td><td>基准</td><td>每条多一次 while 引擎循环 + Context 分配（纳秒级）；瓶颈仍在 scan + 查库，实测无感</td></tr>
     <tr><td>调试</td><td>线性断点，直观</td><td>需跟 next() 跳转，调用栈多一层 FlowEngine</td></tr>
     <tr><td>代码量</td><td>1 个方法 75 行</td><td>+12 个文件（引擎 3 + 节点 9），Task 本身更薄</td></tr>
@@ -514,18 +514,19 @@ while (cursor.hasNext()) {
   <h2>八、面试问答（改造后能讲什么）</h2>
   <div class="qa"><b>Q1：为什么用规则树不是责任链？</b><br>处置动作由订单状态「分叉」——未落库去重投、已取消去释放、已落库去补标记，是树形；责任链适合「顺序全过、一关不过就断」的校验场景，这里没有固定顺序关卡，用链反而表达不了分支。</div>
   <div class="qa"><b>Q2：怎么保证改造行为不变？</b><br>先列出真值表（输入状态 → 原路径 → 新节点），逐条对齐；Redis Key 拼接、回滚脚本、MQ 参数、重试窗口、失败计数口径全部保留；失败统计仍是「单条 catch 累计 hasFailure，最后抛异常给 XXL-JOB」。</div>
-  <div class="qa"><b>Q3：引擎会不会死循环或装配错误？</b><br>FlowEngine 有 MAX_STEPS=100 防环保护，成环直接抛 IllegalStateException；单测覆盖顺序执行、分支跳转、终点收口、防环四种情况。</div>
+  <div class="qa"><b>Q3：引擎会不会死循环或装配错误？</b><br>判环按「同一次运行内节点被重复访问」识别：命中即抛 IllegalStateException 并打印环路（如 OrderLookupNode -&gt; RepostNode -&gt; OrderLookupNode），第一次重访就会拦下；另有可配置步数上限兜底路径爆炸。单测覆盖顺序执行、分支跳转、终点收口、判环与步数上限。</div>
   <div class="qa"><b>Q4：节点是单例，线程安全吗？</b><br>安全。节点无状态，所有一次请求的数据放在每次循环 new 出来的 ReservationContext 里，类里不存任何请求级成员变量（五条铁律之一）。</div>
   <div class="qa"><b>Q5：更简单的重构行不行？</b><br>行。把重投/释放/修复抽成三个方法也能消掉嵌套，但「分支决策」仍藏在方法内的 if 里；规则树多买的是「分支声明独立成层 + 统一出口」。选不选取决于分支会不会继续增长——这也是改造前要先想清楚的问题。</div>
 </section>
 
 <!-- ===================== 9. 附录 ===================== -->
 <section>
-  <h2>九、附录：引擎完整源码（约 60 行，可整包搬走）</h2>
+  <h2>九、附录：引擎完整源码（约 120 行，可整包搬走）</h2>
 <pre><span class="cm">// FlowNode.java —— 节点接口</span>
 public interface FlowNode&lt;T, C, R&gt; {
     R process(T request, C context) throws Exception;          <span class="cm">// 本节点业务</span>
     FlowNode&lt;T, C, R&gt; next(T request, C context) throws Exception; <span class="cm">// 下一跳（null = 终点，分支写这）</span>
+    default String name() { return getClass().getSimpleName(); }    <span class="cm">// 节点名（供判环路径展示）</span>
 }
 
 <span class="cm">// AbstractFlowNode.java —— 抽象节点：定死"先补数据、再干活"</span>
@@ -539,23 +540,60 @@ public abstract class AbstractFlowNode&lt;T, C, R&gt; implements FlowNode&lt;T, 
     protected abstract R handle(T request, C context) throws Exception;
 }
 
-<span class="cm">// FlowEngine.java —— while 驱动全树 + 防环</span>
+<span class="cm">// FlowEngine.java —— while 驱动全树 + 判环 + 可配置步数上限</span>
 public final class FlowEngine {
-    private static final int MAX_STEPS = 100;
+    public static final int DEFAULT_MAX_STEPS = 16;
     private FlowEngine() { }
 
     public static &lt;T, C, R&gt; R run(FlowNode&lt;T, C, R&gt; start, T request, C context) throws Exception {
+        return run(start, request, context, DEFAULT_MAX_STEPS);
+    }
+
+    public static &lt;T, C, R&gt; R run(FlowNode&lt;T, C, R&gt; start, T request, C context, int maxSteps) throws Exception {
+        Set&lt;FlowNode&lt;T, C, R&gt;&gt; visited = Collections.newSetFromMap(
+                new IdentityHashMap&lt;FlowNode&lt;T, C, R&gt;, Boolean&gt;());
+        List&lt;FlowNode&lt;T, C, R&gt;&gt; path = new ArrayList&lt;&gt;();
         FlowNode&lt;T, C, R&gt; node = start;
         R result = null;
-        int step = 0;
         while (node != null) {
-            if (++step &gt; MAX_STEPS) {
-                throw new IllegalStateException("规则树疑似成环（超过 " + MAX_STEPS + " 步）");
+            if (!visited.add(node)) {           <span class="cm">// 同一节点重访 → 判环</span>
+                throw new IllegalStateException("规则树检测到环：" + loopPath(path, node));
             }
+            if (path.size() &gt;= maxSteps) {      <span class="cm">// 路径爆炸兜底</span>
+                throw new IllegalStateException("规则树超过步数上限（" + maxSteps + " 步）：" + pathNames(path));
+            }
+            path.add(node);
             result = node.process(request, context);
             node = node.next(request, context);
         }
         return result;
+    }
+
+    <span class="cm">// loopPath：从重复节点上次出现处拼出 a -&gt; b -&gt; a；pathNames：拼接已访问路径</span>
+    private static &lt;T, C, R&gt; String loopPath(List&lt;FlowNode&lt;T, C, R&gt;&gt; path, FlowNode&lt;T, C, R&gt; repeat) {
+        int from = 0;
+        for (int i = 0; i &lt; path.size(); i++) {
+            if (path.get(i) == repeat) {
+                from = i;
+                break;
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = from; i &lt; path.size(); i++) {
+            sb.append(path.get(i).name()).append(" -&gt; ");
+        }
+        return sb.append(repeat.name()).toString();
+    }
+
+    private static &lt;T, C, R&gt; String pathNames(List&lt;FlowNode&lt;T, C, R&gt;&gt; path) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt; path.size(); i++) {
+            if (i &gt; 0) {
+                sb.append(" -&gt; ");
+            }
+            sb.append(path.get(i).name());
+        }
+        return sb.toString();
     }
 }</pre>
 </section>

@@ -37,6 +37,7 @@ NearGo 提供商铺查询、附近商铺、优惠券秒杀、订单支付和超�
 | 2026-09-23 | 面试文档：提问清单、存储数据结构、真实面经 | — |
 | 2026-09-29 | 面试文档：Java 版本特性、简历问答与 HTML 文档 | — |
 | 2026-10-09 | 对账任务规则树重构与引擎单测（新增） | [优化九](#优化九对账任务规则树重构) |
+| 2026-10-09 | 规则树引擎防护升级：访问标记判环（报错含环路路径）+ 可配置步数上限 | [优化九](#优化九对账任务规则树重构) |
 
 > 各条目的完整提交记录可在 [Commits](https://github.com/kxlnx/NearGo/commits/main) 中查看。
 
@@ -686,13 +687,13 @@ flowchart LR
 5. `RepairNode`：订单已落库时，补回一人一单标记并清理预扣记录；
 6. `ReconcileEndNode`：统一收口，返回 `RepairOutcome` 供任务统一日志与统计。
 
-引擎带 100 步上限防止装配错误导致成环；节点是无状态单例，每次调用的数据通过 `ReservationContext` 传递。
+引擎的防护分两层：单次运行内按对象身份记录访问路径，**同一节点被重复访问即判定成环**，立即失败并打印环路（如 `OrderLookupNode -> RepostNode -> OrderLookupNode`）；另有**可配置的步数上限**（默认 16，对账树显式传入）兜底路径爆炸。节点是无状态单例，每次调用的数据通过 `ReservationContext` 传递。
 
 ### 3. 改造收益
 
 - 分支从 `continue` 拼出的隐性逻辑，变为一处显式声明；
 - 处置结果统一为 `REPOSTED / RELEASED / REPAIRED / SKIPPED`，任务侧按结果统一记录日志；
-- 引擎可独立单测（顺序执行、分支跳转、成环保护），见 `FlowEngineTest`；
+- 引擎可独立单测（顺序执行、分支跳转、判环、步数上限），见 `FlowEngineTest`；
 - 行为与改造前逐条对齐：Redis 操作、RocketMQ 重投和脚本调用保持不变。
 
 代码：[FlowEngine.java](src/main/java/com/hmdp/framework/rule/FlowEngine.java)、[OrderLookupNode.java](src/main/java/com/hmdp/listener/reconcile/OrderLookupNode.java)、[SeckillReconciliationTask.java](src/main/java/com/hmdp/listener/SeckillReconciliationTask.java)、[FlowEngineTest.java](src/test/java/com/hmdp/framework/rule/FlowEngineTest.java)、[规则树改造对比](docs/interview/NearGo-对账任务规则树改造对比.html)
@@ -710,6 +711,10 @@ flowchart LR
 **问：单例节点如何保证线程安全？**
 
 节点本身不持有请求级状态，所有调用中的数据都放在每次新建的 `ReservationContext` 和只读的 `ReservationRequest` 中。
+
+**问：规则树如何防止成环？为什么不用固定步数上限？**
+
+引擎在单次运行内按对象身份记录访问过的节点，同一节点被重复访问即判定成环，第一次重访就失败并打印环路路径；固定步数上限要等走满才报错，且报错里没有路径信息。步数上限只作为"合法但病态的长路径"的兜底保留，默认 16 且按树配置，不再在引擎里硬编码。
 
 ---
 
