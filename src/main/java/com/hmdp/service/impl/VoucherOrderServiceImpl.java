@@ -13,6 +13,7 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SeckillSwitchManager;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -62,6 +63,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private RocketMQTemplate rocketMQTemplate;
     @Resource
     private RedissonClient redissonClient;
+    @Resource
+    private SeckillSwitchManager seckillSwitchManager;
 
     @Value("${seckill.rocketmq.order-topic:seckill-order-topic}")
     private String orderTopic;
@@ -74,6 +77,10 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         UserDTO user = UserHolder.getUser();
         if (user == null) {
             return Result.fail("请先登录");
+        }
+        String rejectReason = seckillSwitchManager.rejectReason(user.getId());
+        if (rejectReason != null) {
+            return Result.fail(rejectReason);
         }
 
         long orderId = redisIdWorker.nextId("order");

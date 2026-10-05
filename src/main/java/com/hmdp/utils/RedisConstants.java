@@ -27,6 +27,8 @@ public class RedisConstants {
     public static final String SECKILL_ORDER_KEY = "seckill:order:";
     /** Redis Hash：记录一次 Redis 预扣对应的订单、用户和预扣时间，供补偿任务使用。 */
     public static final String SECKILL_RESERVATION_KEY = "seckill:reservation:";
+    /** Redis Hash：秒杀动态开关与灰度切量配置（字段：enabled / cutRange），供运营动态调整。 */
+    public static final String SECKILL_DYNAMIC_CONFIG_KEY = "config:seckill:dynamic";
     public static final String BLOG_LIKED_KEY = "blog:liked:";
     public static final String FEED_KEY = "feed:";
     public static final String SHOP_GEO_KEY = "shop:geo:";

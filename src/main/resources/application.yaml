@@ -28,6 +28,8 @@ rocketmq:
 seckill:
   consumer:
     enabled: ${SECKILL_CONSUMER_ENABLED:true}
+  dynamic:
+    admin-token: ${SECKILL_ADMIN_TOKEN:neargo-admin}
   rocketmq:
     order-topic: ${SECKILL_ORDER_TOPIC:seckill-order-topic}
     order-consumer-group: ${SECKILL_ORDER_CONSUMER_GROUP:seckill-order-consumer}
