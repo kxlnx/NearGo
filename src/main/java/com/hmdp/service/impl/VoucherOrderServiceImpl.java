@@ -8,17 +8,17 @@ import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.SeckillVoucher;
 import com.hmdp.entity.VoucherOrder;
+import com.hmdp.framework.chain.Chain;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
+import com.hmdp.service.order.OrderCreateContext;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.SeckillSwitchManager;
 import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -62,7 +62,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RocketMQTemplate rocketMQTemplate;
     @Resource
-    private RedissonClient redissonClient;
+    private Chain<VoucherOrder, OrderCreateContext> orderCreateChain;
     @Resource
     private SeckillSwitchManager seckillSwitchManager;
 
@@ -125,44 +125,23 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         return Result.ok(orderId);
     }
 
-    /** RocketMQ 消费端事务：订单 ID 幂等 + 用户/券幂等 + 数据库条件扣库存。 */
+    /**
+     * RocketMQ 消费端事务：责任链依次执行
+     * 订单幂等 → 用户锁 → 用户/券幂等 → 条件扣库存 → 落库。
+     * 节点返回 false 表示命中幂等提前结束，抛异常则整条事务回滚。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createVoucherOrder(VoucherOrder voucherOrder) {
-        if (getById(voucherOrder.getId()) != null) {
-            log.info("重复消费订单消息，按订单 ID 幂等返回 orderId={}", voucherOrder.getId());
-            return;
-        }
-
-        Long userId = voucherOrder.getUserId();
-        RLock lock = redissonClient.getLock("lock:order:" + userId);
-        boolean locked = lock.tryLock();
-        if (!locked) {
-            throw new IllegalStateException("用户订单并发锁获取失败");
-        }
+        OrderCreateContext context = new OrderCreateContext(voucherOrder);
         try {
-            long duplicated = count(new LambdaQueryWrapper<VoucherOrder>()
-                    .eq(VoucherOrder::getUserId, userId)
-                    .eq(VoucherOrder::getVoucherId, voucherOrder.getVoucherId())
-                    .ne(VoucherOrder::getStatus, 4));   // 已取消订单不算重复：取消已释放库存与资格，允许重新抢
-            if (duplicated > 0) {
-                log.info("重复消费用户券消息，按用户和券幂等返回 userId={}, voucherId={}",
-                        userId, voucherOrder.getVoucherId());
-                return;
-            }
-
-            boolean stockUpdated = seckillVoucherService.update(
-                    new LambdaUpdateWrapper<SeckillVoucher>()
-                            .eq(SeckillVoucher::getVoucherId, voucherOrder.getVoucherId())
-                            .gt(SeckillVoucher::getStock, 0)
-                            .setSql("stock = stock - 1")
-            );
-            if (!stockUpdated) {
-                throw new IllegalStateException("数据库库存与 Redis 预扣状态不一致");
-            }
-            save(voucherOrder);
+            orderCreateChain.execute(voucherOrder, context);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("订单创建链执行失败 orderId=" + voucherOrder.getId(), e);
         } finally {
-            lock.unlock();
+            context.releaseLock();
         }
     }
 

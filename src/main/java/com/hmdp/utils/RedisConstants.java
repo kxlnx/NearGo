@@ -15,6 +15,8 @@ public class RedisConstants {
 
     public static final String LOCK_SHOP_KEY = "lock:shop:";
     public static final Long LOCK_SHOP_TTL = 10L;
+    /** 用户维度并发锁：防止同一用户的多条订单消息并发穿过幂等校验。 */
+    public static final String LOCK_ORDER_KEY = "lock:order:";
 
     public static final String CACHE_TYPE_KEY = "cache:type";
     public static final String CACHE_VOUCHER_LIST_KEY = "cache:voucher:list:";
