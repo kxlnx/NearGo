@@ -120,6 +120,10 @@ public class SeckillReconciliationTask {
             case REPAIRED:
                 log.info("已落库订单完成 Redis 预占记录修复 orderId={}", context.getOrderId());
                 break;
+            case FAILED_MANUAL:
+                log.error("秒杀订单补偿已转人工处理 orderId={}, voucherId={}, userId={}",
+                        context.getOrderId(), context.getVoucherId(), context.getUserId());
+                break;
             case SKIPPED:
             default:
                 log.debug("秒杀预扣记录本轮无需处理 reservationKey={}", reservationKey);

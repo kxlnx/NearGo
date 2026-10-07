@@ -1,5 +1,6 @@
 package com.hmdp.listener.reconcile;
 
+import com.hmdp.entity.TaskCompensation;
 import com.hmdp.framework.rule.AbstractFlowNode;
 import com.hmdp.framework.rule.FlowNode;
 import com.hmdp.utils.RedisConstants;
@@ -31,6 +32,8 @@ public class ReleaseNode extends AbstractFlowNode<ReservationRequest, Reservatio
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private ReconcileEndNode reconcileEndNode;
+    @Resource
+    private TaskCompensationRecorder taskCompensationRecorder;
 
     @Override
     protected RepairOutcome handle(ReservationRequest request, ReservationContext context) {
@@ -46,6 +49,8 @@ public class ReleaseNode extends AbstractFlowNode<ReservationRequest, Reservatio
         if (released == null) {
             throw new IllegalStateException("已取消订单的 Redis 预扣释放失败 reservationKey=" + request.getReservationKey());
         }
+        // 预扣已释放：账本闭环为成功
+        taskCompensationRecorder.markSuccess(TaskCompensation.BIZ_TYPE_ORDER_CREATE, context.getOrderId());
         context.setOutcome(RepairOutcome.RELEASED);
         return null;
     }

@@ -1,5 +1,6 @@
 package com.hmdp.listener.reconcile;
 
+import com.hmdp.entity.TaskCompensation;
 import com.hmdp.framework.rule.AbstractFlowNode;
 import com.hmdp.framework.rule.FlowNode;
 import com.hmdp.utils.RedisConstants;
@@ -18,6 +19,8 @@ public class RepairNode extends AbstractFlowNode<ReservationRequest, Reservation
     private StringRedisTemplate stringRedisTemplate;
     @Resource
     private ReconcileEndNode reconcileEndNode;
+    @Resource
+    private TaskCompensationRecorder taskCompensationRecorder;
 
     @Override
     protected RepairOutcome handle(ReservationRequest request, ReservationContext context) {
@@ -25,6 +28,8 @@ public class RepairNode extends AbstractFlowNode<ReservationRequest, Reservation
                 RedisConstants.SECKILL_ORDER_KEY + context.getVoucherId(),
                 context.getUserId().toString());
         stringRedisTemplate.delete(request.getReservationKey());
+        // 订单已落库：账本闭环为成功（从未重投过的订单没有账本行，更新影响 0 行）
+        taskCompensationRecorder.markSuccess(TaskCompensation.BIZ_TYPE_ORDER_CREATE, context.getOrderId());
         context.setOutcome(RepairOutcome.REPAIRED);
         return null;
     }

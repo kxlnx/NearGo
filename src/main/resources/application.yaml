@@ -40,6 +40,7 @@ seckill:
     enabled: ${SECKILL_RECONCILE_ENABLED:true}
     stale-seconds: ${SECKILL_RECONCILE_STALE_SECONDS:30}
     retry-interval-seconds: ${SECKILL_RECONCILE_RETRY_INTERVAL_SECONDS:60}
+    max-retry-count: ${SECKILL_RECONCILE_MAX_RETRY_COUNT:5}
 xxl:
   job:
     admin:

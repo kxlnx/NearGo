@@ -15,5 +15,8 @@ public enum RepairOutcome {
     RELEASED,
 
     /** 订单已落库，已补回一人一单标记并清理预扣记录。 */
-    REPAIRED
+    REPAIRED,
+
+    /** 自动重投达到上限，已转人工处理，不再自动重试。 */
+    FAILED_MANUAL
 }
