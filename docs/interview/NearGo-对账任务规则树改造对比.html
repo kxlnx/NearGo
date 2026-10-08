@@ -229,7 +229,7 @@ while (cursor.hasNext()) {
 ├── listener/reconcile/                    <span class="tag new">新增</span>对账规则树（9 个文件）
 │   ├── ReservationRequest.java            单条记录输入：key + Hash 字段（只读）
 │   ├── ReservationContext.java            一次处理的上下文（订单、解析值、结果）
-│   ├── RepairOutcome.java                 处置结果枚举：SKIPPED/REPOSTED/RELEASED/REPAIRED
+│   ├── RepairOutcome.java                 处置结果枚举：SKIPPED/REPOSTED/RELEASED/REPAIRED/FAILED_MANUAL
 │   ├── ReservationRootNode.java           ① 元数据校验，不完整就 throw
 │   ├── OrderLookupNode.java               ②③⑥ 查订单 + <b>唯一的分支声明处 next()</b>
 │   ├── RepostNode.java                    ④ 未落库：重投 / 未到窗口跳过

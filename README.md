@@ -38,6 +38,9 @@ NearGo 提供商铺查询、附近商铺、优惠券秒杀、订单支付和超�
 | 2026-09-29 | 面试文档：Java 版本特性、简历问答与 HTML 文档 | — |
 | 2026-10-09 | 对账任务规则树重构与引擎单测（新增） | [优化九](#优化九对账任务规则树重构) |
 | 2026-10-09 | 规则树引擎防护升级：访问标记判环（报错含环路路径）+ 可配置步数上限 | [优化九](#优化九对账任务规则树重构) |
+| 2026-10-09 | 秒杀动态开关与灰度切量：Redis 配置 + 本地缓存，支持急停与按用户放量 | [优化十](#优化十秒杀动态开关与灰度切量) |
+| 2026-10-09 | 订单创建责任链重构：幂等 → 用户锁 → 用户券幂等 → 扣库存 → 落库 | [优化十一](#优化十一订单创建责任链) |
+| 2026-10-09 | 补偿任务账本：DB 持久化重投记录，重试有上限、终态转人工 | [优化十二](#优化十二补偿任务账本) |
 
 > 各条目的完整提交记录可在 [Commits](https://github.com/kxlnx/NearGo/commits/main) 中查看。
 
@@ -54,6 +57,9 @@ NearGo 提供商铺查询、附近商铺、优惠券秒杀、订单支付和超�
 - [优化七：Redis GEO 附近商铺检索](#优化七redis-geo-附近商铺检索)
 - [优化八：秒杀券详情页两级缓存](#优化八秒杀券详情页两级缓存)
 - [优化九：对账任务规则树重构](#优化九对账任务规则树重构)
+- [优化十：秒杀动态开关与灰度切量](#优化十秒杀动态开关与灰度切量)
+- [优化十一：订单创建责任链](#优化十一订单创建责任链)
+- [优化十二：补偿任务账本](#优化十二补偿任务账本)
 - [故障场景与一致性闭环](#故障场景与一致性闭环)
 - [压测结果与数据口径](#压测结果与数据口径)
 - [快速启动](#快速启动)
@@ -106,6 +112,9 @@ flowchart LR
 | 附近商铺查询 | Redis GEO 检索排序 + MySQL 补详情 | 避免数据库直接做大范围距离排序 | GEO 数据需要单独初始化和维护 |
 | 秒杀券详情读压力 | Caffeine 5s + Redis 30s 两级缓存，库存字段实时读取 | 详情页极热请求先命中进程内内存 | 详情信息允许短时间旧值，库存不进缓存 |
 | 对账补偿扩展性 | 规则树编排「校验 → 查库 → 重投/释放/补标记 → 收口」 | 分支集中声明，新增分支不改任务主流程 | 增加一层节点抽象，简单逻辑也按节点组织 |
+| 秒杀急停与灰度放量 | Redis 动态开关 + 按 userId 稳定哈希切量，本地缓存 5 秒 | 出事故可快速急停，新活动可先放量观察 | 配置有约 5 秒传播窗口；管理接口为演示级鉴权 |
+| 订单消费逻辑扩展性 | 责任链编排「幂等 → 用户锁 → 用户券幂等 → 扣库存 → 落库」 | 新增校验不改主流程，节点独立可测 | 步骤少时，链条相对直接写法有少量抽象成本 |
+| 预扣补偿可审计性 | Redis 快路径 + DB 补偿账本，重投有上限并转人工 | Redis 线索丢失后账本仍在，失败有终态 | 账本由对账任务驱动写入，终态告警尚未接入 |
 
 ---
 
@@ -502,7 +511,7 @@ Quartz 适合应用内复杂调度，也支持集群；本项目更看重独立�
 
 **问：补偿任务可以无限重试吗？**
 
-不可以。需要最大重试次数、指数退避、失败告警和人工处理入口。当前代码记录了重试次数和最近重试时间，但生产化仍应增加死信/异常表及告警闭环。
+不可以。当前实现由 `seckill.reconcile.max-retry-count`（默认 5）限制自动重投次数，达到上限后产出 `FAILED_MANUAL` 并在补偿账本中标记终态失败，等待人工处理（见[优化十二](#优化十二补偿任务账本)）；指数退避与告警通道仍属于生产化增强项。
 
 ### 7. 当前验证边界
 
@@ -692,7 +701,7 @@ flowchart LR
 ### 3. 改造收益
 
 - 分支从 `continue` 拼出的隐性逻辑，变为一处显式声明；
-- 处置结果统一为 `REPOSTED / RELEASED / REPAIRED / SKIPPED`，任务侧按结果统一记录日志；
+- 处置结果统一为 `REPOSTED / RELEASED / REPAIRED / SKIPPED / FAILED_MANUAL`，任务侧按结果统一记录日志；
 - 引擎可独立单测（顺序执行、分支跳转、判环、步数上限），见 `FlowEngineTest`；
 - 行为与改造前逐条对齐：Redis 操作、RocketMQ 重投和脚本调用保持不变。
 
@@ -715,6 +724,144 @@ flowchart LR
 **问：规则树如何防止成环？为什么不用固定步数上限？**
 
 引擎在单次运行内按对象身份记录访问过的节点，同一节点被重复访问即判定成环，第一次重访就失败并打印环路路径；固定步数上限要等走满才报错，且报错里没有路径信息。步数上限只作为"合法但病态的长路径"的兜底保留，默认 16 且按树配置，不再在引擎里硬编码。
+
+---
+
+## 优化十：秒杀动态开关与灰度切量
+
+### 1. 要解决什么问题
+
+秒杀开关原先写在 `application.yaml` 中，变更必须改配置、重启应用：秒杀出事故无法快速止血，新活动上线也无法先放量观察。
+
+### 2. 实现方式
+
+配置存放在 Redis Hash `config:seckill:dynamic`：
+
+| 字段 | 含义 |
+|---|---|
+| `enabled` | 秒杀总开关，置 0 立即停止全部秒杀请求 |
+| `cutRange` | 灰度放量比例 0~100，按 `userId % 100 < cutRange` 稳定切量 |
+
+1. 秒杀入口在进入 Lua 预扣前先查开关：关闭 → "秒杀活动已暂停"；未切中 → "活动灰度中，暂未开放"；
+2. 应用内用 Caffeine 缓存配置 5 秒，避免每个请求都读 Redis；管理接口更新后立即失效本实例缓存；
+3. 配置缺失时按"开放 + 100% 放量"兜底，保证历史行为不变。
+
+代码：[SeckillSwitchManager.java](src/main/java/com/hmdp/utils/SeckillSwitchManager.java)、[SeckillConfigController.java](src/main/java/com/hmdp/controller/SeckillConfigController.java)
+
+### 3. 使用方式
+
+```text
+GET /seckill/config                                  # 查询当前开关与放量比例
+PUT /seckill/config?enabled=true&cutRange=30         # 修改（需要 X-Admin-Token 请求头）
+Header: X-Admin-Token: <SECKILL_ADMIN_TOKEN>
+```
+
+### 4. 一致性边界
+
+- 单实例最多 5 秒生效（本地缓存 TTL），未做跨实例主动广播；
+- 管理令牌为演示级鉴权，生产应接入统一权限体系并记录操作审计。
+
+### 5. 高频面试追问
+
+**问：为什么开关放 Redis，不放配置中心？**
+
+Redis 已在秒杀关键路径上，延迟低、无需新增组件；配置中心（Nacos/DCC 等）更适合复杂参数。取舍点是"复用现有基础设施、减少运维面"。
+
+**问：灰度切量如何保证同一用户结果稳定？**
+
+用 `userId` 做稳定哈希（`userId % 100`），不依赖随机数；同一用户多次请求结果一致，避免"有时能抢、有时不能"的抖动。
+
+**问：本地缓存 5 秒会不会导致开关延迟？**
+
+会有最多 5 秒的传播窗口。急停场景可接受（Lua 原子扣减仍在兜底）；若要更精确，可改用 Redis Pub/Sub 主动推送失效。
+
+---
+
+## 优化十一：订单创建责任链
+
+### 1. 要解决什么问题
+
+订单消费端原先在一个方法里顺序写着：订单 ID 幂等 → 用户 Redisson 锁 → 用户/券幂等 → 条件扣库存 → 落库。新增一种校验（风控、限购等）就要改主流程，且难以单独测试。
+
+### 2. 实现方式
+
+新增轻量责任链（`com.hmdp.framework.chain`）：节点返回 `true` 继续、`false` 提前完成、抛异常中断；装配顺序集中声明：
+
+```text
+OrderIdempotentNode（订单幂等）
+  → UserLockNode（用户 Redisson 锁）
+    → UserVoucherIdempotentNode（用户+券幂等，排除已取消）
+      → StockDeductNode（数据库条件扣库存）
+        → SaveOrderNode（落库）
+```
+
+1. 链上节点是无状态单例，数据通过 `OrderCreateContext` 传递；
+2. 用户锁由编排层在 `finally` 中统一释放，不散落在节点里；
+3. 与规则树的分工：链管固定顺序的检验流水线，树管需要分叉的处置决策。
+
+代码：[Chain.java](src/main/java/com/hmdp/framework/chain/Chain.java)、[OrderCreateChainConfig.java](src/main/java/com/hmdp/service/order/OrderCreateChainConfig.java)、[VoucherOrderServiceImpl.java](src/main/java/com/hmdp/service/impl/VoucherOrderServiceImpl.java)
+
+### 3. 行为等价性
+
+节点顺序、幂等语义、锁粒度、事务回滚与失败口径与改造前逐条一致；`ChainTest` 覆盖顺序执行、提前终止、异常中断。
+
+### 4. 高频面试追问
+
+**问：责任链和规则树有什么区别？**
+
+链是固定顺序的"流水线"，节点返回 true/false 决定继续或结束；树是按状态分叉的"决策结构"，分支声明在 `next()` 里。校验步骤没有分叉时用链，需要走不同处理路径时用树。
+
+**问：为什么不让节点自己管锁？**
+
+锁的生命周期必须覆盖整条链（而不是单个节点），放在编排层 `finally` 释放才能保证异常时不泄漏；节点保持无状态。
+
+**问：新增一条风控校验要改哪里？**
+
+新增一个 `ChainNode` 并在装配处插入顺序即可，主流程与其他节点不动。
+
+---
+
+## 优化十二：补偿任务账本
+
+### 1. 要解决什么问题
+
+对账补偿的线索此前全部存在 Redis（`seckill:reservation:*`）：Redis 数据丢失或误删后线索即消失；重试次数、失败原因散落在 Hash 里，无法审计、无法交接人工。
+
+### 2. 实现方式
+
+新增 MySQL 账本表 `tb_task_compensation`（`uk_biz(biz_type, biz_id)` 唯一键保证幂等），规则树节点在对账过程中同步记账：
+
+| 场景 | 动作节点 | 账本状态 |
+|---|---|---|
+| 未落库重投成功 | `RepostNode` | 重试中（次数 +1，记录下次执行时间） |
+| 订单已落库 | `RepairNode` | 已成功（闭环） |
+| 预扣已释放 | `ReleaseNode` | 已成功（闭环） |
+| 重投达到上限 | `RepostNode` | 终态失败（转人工，不再自动重试） |
+
+- Redis 仍是快路径（预扣元数据），DB 是账本，职责分离：**Redis 线索丢了，账本还在**；
+- 重投上限由 `seckill.reconcile.max-retry-count`（默认 5）控制，达到上限产出 `FAILED_MANUAL`，停止自动重试并记录 error 日志；
+- 建表语句已并入 [hmdp.sql](hmdp.sql)，存量库执行 [task_compensation.sql](docs/sql/task_compensation.sql)。
+
+代码：[TaskCompensationRecorder.java](src/main/java/com/hmdp/listener/reconcile/TaskCompensationRecorder.java)、[RepostNode.java](src/main/java/com/hmdp/listener/reconcile/RepostNode.java)
+
+### 3. 一致性边界
+
+- 账本由对账任务驱动写入，不在秒杀热路径写 DB（避免放大数据库写压力）；
+- 终态失败目前只落账本与日志，尚未接入告警/工单系统，属于人工闭环的起点。
+
+### 4. 高频面试追问
+
+**问：这和 RocketMQ 自带重试、死信队列有什么区别？**
+
+MQ 重试解决"消费失败"，有固定次数与死信主题；补偿账本记录的是"预扣修复过程"的终态（重投次数、原因、下次执行时间），服务于 Redis/MySQL/MQ 三者之间的最终一致性闭环，语义更上层。
+
+**问：为什么唯一键用 biz_type + biz_id？**
+
+同一订单的重投会多次记账，唯一键保证同一业务实体只有一行，重复记账变成幂等更新，也防止重投风暴产生重复行。
+
+**问：为什么不在秒杀入口直接写账本？**
+
+秒杀入口是热点路径，每单多一次数据库写会放大 DB 压力；把记账放在对账任务里，热路径只做 Redis 原子操作，账本只在异常路径产生。
 
 ---
 
@@ -775,6 +922,9 @@ flowchart LR
 | Redis GEO | Redis 做地理检索和排序，MySQL 批量补详情 | Redis 版本、GEO 初始化和空间数据库选择 |
 | 秒杀详情缓存 | Caffeine 5s + Redis 30s 两级缓存，库存字段实时读取不缓存 | 短 TTL 一致性、负缓存、跨实例失效 |
 | 规则树重构 | 对账任务按「校验 → 查库 → 处置 → 收口」节点编排，分支集中声明 | 规则树与责任链/状态机区别、单例节点线程安全 |
+| 秒杀开关 | Redis 配置 + 本地缓存，支持急停与按用户灰度切量 | 配置传播时效、降级预案、切量稳定性 |
+| 责任链 | 订单创建拆成固定顺序的校验流水线，节点返回 true/false | 与规则树的区别、锁的生命周期、链路幂等 |
+| 补偿账本 | Redis 快路径 + DB 账本，重投有上限、终态转人工 | 与 MQ 重试/死信的区别、唯一键幂等 |
 
 ## 项目结构
 
@@ -784,10 +934,10 @@ src/main/java/com/hmdp
 ├── aspect          # Redis 滑动窗口限流切面
 ├── config          # Redis、Redisson、MyBatis、XXL-JOB 配置
 ├── controller      # HTTP 接口
-├── framework       # 自研规则树引擎（FlowNode / FlowEngine）
-├── listener        # RocketMQ 消费者、XXL-JOB 对账任务与对账规则树节点
-├── service         # 商铺、优惠券、订单业务
-└── utils           # 缓存、ID、锁和 Redis Key 工具
+├── framework       # 自研基础框架：规则树引擎（FlowNode / FlowEngine）+ 责任链（ChainNode / Chain）
+├── listener        # RocketMQ 消费者、XXL-JOB 对账任务、对账规则树节点与补偿账本
+├── service         # 商铺、优惠券、订单业务（service/order 为订单创建责任链）
+└── utils           # 缓存、ID、锁、秒杀动态开关和 Redis Key 工具
 
 src/main/resources
 ├── mapper
@@ -799,8 +949,10 @@ docs
 ├── architecture
 │   ├── seckill-flow.md
 │   └── xxl-job-reconciliation.md
-└── benchmarks
-    └── README.md
+├── benchmarks
+│   └── README.md
+└── sql
+    └── task_compensation.sql    # 补偿任务账本增量建表
 ```
 
 ## 快速启动
@@ -816,7 +968,7 @@ docs
 
 ### 2. 初始化数据库
 
-创建 `hmdp` 数据库并导入 [hmdp.sql](hmdp.sql)。
+创建 `hmdp` 数据库并导入 [hmdp.sql](hmdp.sql)（已包含补偿任务账本表）；存量库补建该表可执行 [docs/sql/task_compensation.sql](docs/sql/task_compensation.sql)。
 
 ### 3. 配置环境变量
 
@@ -832,6 +984,8 @@ REDIS_PASSWORD
 ROCKETMQ_NAME_SERVER
 XXL_JOB_ADMIN_ADDRESSES
 XXL_JOB_ACCESS_TOKEN
+SECKILL_ADMIN_TOKEN（可选，秒杀开关管理令牌）
+SECKILL_RECONCILE_MAX_RETRY_COUNT（可选，对账自动重投上限）
 ```
 
 仓库不保存本机密码、登录 Token 或个人压测账号。
@@ -865,6 +1019,10 @@ Cron: 0 * * * * ?
 - 当前数据库没有声明 `(user_id, voucher_id)` 唯一索引，一人一单主要依赖 Lua、业务校验和用户锁；
 - `/shop/{id}` 的逻辑过期 Value 带 24 小时物理 TTL 兜底，缓存 Key 完全不存在时会回源一次并回填，命中的负缓存不在回源之列；
 - 秒杀券详情缓存以 5 秒 / 30 秒短 TTL 收敛一致性，未实现跨实例主动失效广播；
+- 秒杀动态开关基于 Redis + 本地缓存（5 秒），多实例下变更最多 5 秒后生效，未做主动广播；
+- 秒杀开关管理接口的 `X-Admin-Token` 为演示级鉴权，生产应接入统一权限体系与操作审计；
+- 订单创建责任链与改造前行为逐条对齐，节点顺序、事务边界与锁释放语义保持一致；
+- 补偿账本由对账任务驱动写入，重试达到上限后仅标记失败并打印日志，尚未接入告警/工单闭环；
 - Caffeine 本地缓存通过短 TTL 控制不一致窗口，尚未实现跨实例失效广播；
 - XXL-JOB 补偿代码已经接入，Admin 端故障转移和失败重试仍需部署后端到端验证；
 - 压测数据来自本地单机短时实验，只用于证明逻辑和对比趋势，不代表生产集群容量。
