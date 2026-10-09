@@ -3,6 +3,8 @@ package com.hmdp.utils;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -12,13 +14,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 秒杀动态开关与灰度切量：
- * Redis Hash 保存配置（enabled / cutRange），本地 Caffeine 缓存 5 秒，避免每个秒杀请求都去读配置。
+ * 权威值存 Redis Hash（enabled / cutRange），本地 Caffeine 缓存 5 秒，避免每个秒杀请求都去读配置。
+ * 配置变更通过 Redis Pub/Sub 广播失效通知（毫秒级生效）；通知丢失时由 5 秒 TTL 兜底自愈。
  * 配置缺失时按"全量开放"兜底，保证历史行为不变。
  */
 @Component
+@Slf4j
 public class SeckillSwitchManager {
 
-    /** 本地缓存有效期：开关/切量调整后，单实例最多 5 秒生效。 */
+    /** 本地缓存有效期：作为"推送到不了"时的兜底，最长 5 秒自愈。 */
     private static final long LOCAL_TTL_SECONDS = 5L;
     private static final String CACHE_KEY = "seckill-switch";
     private static final String FIELD_ENABLED = "enabled";
@@ -27,6 +31,8 @@ public class SeckillSwitchManager {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+    @Resource
+    private RedissonClient redissonClient;
 
     private final Cache<String, SeckillSwitch> localCache = Caffeine.newBuilder()
             .maximumSize(1)
@@ -50,13 +56,24 @@ public class SeckillSwitchManager {
         return localCache.get(CACHE_KEY, key -> loadFromRedis());
     }
 
-    /** 更新配置并使本实例缓存立即失效（其他实例最多 5 秒后生效）。 */
+    /** 更新配置：写 Redis（权威值）+ 本实例立即失效 + 广播通知其他实例。 */
     public void update(boolean enabled, int cutRange) {
         if (cutRange < 0 || cutRange > FULL_CUT_RANGE) {
             throw new IllegalArgumentException("cutRange 必须在 0~100 之间：" + cutRange);
         }
         stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_ENABLED, enabled ? "1" : "0");
         stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_CUT_RANGE, String.valueOf(cutRange));
+        invalidateLocalCache();
+        // 广播失效通知：正常时其他实例毫秒级生效；发送失败也不影响正确性，5 秒 TTL 会兜底
+        try {
+            redissonClient.getTopic(RedisConstants.SECKILL_DYNAMIC_CONFIG_TOPIC).publish("changed");
+        } catch (Exception e) {
+            log.warn("秒杀开关变更通知发送失败，其他实例将在本地缓存过期后生效", e);
+        }
+    }
+
+    /** 使本实例本地缓存立即失效（配置变更推送的消费入口，也供测试调用）。 */
+    public void invalidateLocalCache() {
         localCache.invalidateAll();
     }
 

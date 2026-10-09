@@ -31,6 +31,8 @@ public class RedisConstants {
     public static final String SECKILL_RESERVATION_KEY = "seckill:reservation:";
     /** Redis Hash：秒杀动态开关与灰度切量配置（字段：enabled / cutRange），供运营动态调整。 */
     public static final String SECKILL_DYNAMIC_CONFIG_KEY = "config:seckill:dynamic";
+    /** Redis Pub/Sub 频道：秒杀开关变更通知，各实例收到后失效本地缓存。 */
+    public static final String SECKILL_DYNAMIC_CONFIG_TOPIC = "topic:seckill:dynamic:changed";
     public static final String BLOG_LIKED_KEY = "blog:liked:";
     public static final String FEED_KEY = "feed:";
     public static final String SHOP_GEO_KEY = "shop:geo:";
