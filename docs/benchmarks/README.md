@@ -4,6 +4,8 @@
 环境：Java 21.0.11、Spring Boot 2.7.4、本机 MySQL、Redis 5.0.14.1、RocketMQ 4.9.4 单 Broker。
 
 以下结果用于验证功能正确性和观察单机性能，不外推为生产集群容量。
+> 秒杀改造前后的完整 A/B 对比（JMeter 执行步骤 + 前后数据）：见 [jmeter-before-after.md](./jmeter-before-after.md)
+
 
 ## Redis 5 GEO 兼容性
 
