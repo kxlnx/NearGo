@@ -2,6 +2,7 @@
 
 > 测试日期：2026-10-10　｜　改造前基线：`97cd6ab`（2022-10-10）　｜　改造后：`efaa50f`（HEAD）
 > 单机压测，结论为**同机相对差异**，不外推集群容量。
+> 读路径压测与多级缓存问题（含「哪轮压测验证哪项优化」覆盖矩阵）：见 [read-path-and-cache-findings.md](./read-path-and-cache-findings.md)
 
 ## 0. 摘要
 

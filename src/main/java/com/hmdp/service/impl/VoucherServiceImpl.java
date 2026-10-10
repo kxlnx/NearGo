@@ -13,11 +13,13 @@ import com.hmdp.mapper.VoucherMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisConstants;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -31,6 +33,7 @@ import static com.hmdp.utils.RedisConstants.SECKILL_STOCK_KEY;
  * @author 虎哥
  * @since 2021-12-22
  */
+@Slf4j
 @Service
 public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> implements IVoucherService {
 
@@ -53,28 +56,46 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
 
     @Override
     public Result queryVoucherOfShop(Long shopId) {
-        List<Voucher> local = localVoucherCache.getIfPresent(shopId);
-        if (local != null) {
-            return Result.ok(local);
-        }
-
-        String redisKey = RedisConstants.CACHE_VOUCHER_LIST_KEY + shopId;
-        String cached = stringRedisTemplate.opsForValue().get(redisKey);
-        if (cached != null && !cached.isEmpty()) {
-            List<Voucher> vouchers = JSONUtil.toList(cached, Voucher.class);
-            localVoucherCache.put(shopId, vouchers);
-            return Result.ok(vouchers);
-        }
-
-        List<Voucher> vouchers = getBaseMapper().queryVoucherOfShop(shopId);
-        stringRedisTemplate.opsForValue().set(
-                redisKey,
-                JSONUtil.toJsonStr(vouchers),
-                RedisConstants.CACHE_VOUCHER_LIST_TTL,
-                TimeUnit.SECONDS
-        );
-        localVoucherCache.put(shopId, vouchers);
+        // 用 Caffeine#get(key, loader) 而不是 getIfPresent + 自己兜底：
+        // get(key, loader) 是「单飞」语义 —— 同一个 shopId 的并发请求只会有一个线程执行 loader，
+        // 其余线程等它的结果。原来的写法里，缓存失效瞬间每个线程都会各自回源数据库（缓存击穿）。
+        List<Voucher> vouchers = localVoucherCache.get(shopId, this::loadVoucherList);
         return Result.ok(vouchers);
+    }
+
+    /**
+     * 券列表加载：L2 Redis → L3 MySQL（单飞，由 Caffeine 保证同一 key 只执行一次）。
+     *
+     * <p>注意返回空集合而不是 null：Caffeine 不会缓存 null，
+     * 返回 null 会让每个并发请求都重新执行一次加载，等于没缓存。
+     */
+    private List<Voucher> loadVoucherList(Long shopId) {
+        String redisKey = RedisConstants.CACHE_VOUCHER_LIST_KEY + shopId;
+
+        String cached;
+        try {
+            cached = stringRedisTemplate.opsForValue().get(redisKey);
+        } catch (Exception e) {
+            // Redis 不可用：降级直查数据库，不让缓存层故障传染成业务故障
+            log.warn("[缓存降级] 券列表 Redis 读取失败，直接回源数据库, shopId={}", shopId, e);
+            return nullSafeList(getBaseMapper().queryVoucherOfShop(shopId));
+        }
+        if (cached != null && !cached.isEmpty()) {
+            return JSONUtil.toList(cached, Voucher.class);
+        }
+
+        List<Voucher> vouchers = nullSafeList(getBaseMapper().queryVoucherOfShop(shopId));
+        try {
+            stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(vouchers),
+                    RedisConstants.CACHE_VOUCHER_LIST_TTL, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("[缓存] 券列表回填 Redis 失败（不影响本次返回）, shopId={}", shopId, e);
+        }
+        return vouchers;
+    }
+
+    private static List<Voucher> nullSafeList(List<Voucher> list) {
+        return list == null ? new ArrayList<>() : list;
     }
 
     /**
@@ -84,58 +105,107 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
      */
     @Override
     public Result querySeckillVoucherDetail(Long voucherId) {
-        // L1：进程内本地缓存，命中直接返回，不走网络
-        SeckillVoucherDetailDTO local = localSeckillDetailCache.getIfPresent(voucherId);
-        if (local != null) {
-            fillLiveStock(local);
-            return Result.ok(local);
+        // 同样走单飞：缓存失效瞬间不会有一批线程同时回源数据库
+        SeckillVoucherDetailDTO dto = localSeckillDetailCache.get(voucherId, this::loadSeckillDetail);
+        if (dto == null) {
+            return Result.fail("优惠券不存在");
         }
+        fillLiveStock(dto);
+        return Result.ok(dto);
+    }
 
-        // L2：Redis 缓存，命中后回填 L1
+    /**
+     * 详情加载：L2 Redis → L3 MySQL。
+     *
+     * <p>返回 null 表示「确认不存在」：Caffeine 不缓存 null，但 L2 已写入 2 秒负缓存，
+     * 因此不会反复穿透到数据库（每个请求只多一次 Redis 读）。
+     */
+    private SeckillVoucherDetailDTO loadSeckillDetail(Long voucherId) {
         String redisKey = RedisConstants.CACHE_SECKILL_VOUCHER_KEY + voucherId;
-        String cached = stringRedisTemplate.opsForValue().get(redisKey);
-        if (cached != null) {
-            if (cached.isEmpty()) {
-                return Result.fail("优惠券不存在");   // 命中空值缓存（负缓存）：不存在的 ID 不再穿透到数据库
-            }
-            SeckillVoucherDetailDTO dto = JSONUtil.toBean(cached, SeckillVoucherDetailDTO.class);
-            localSeckillDetailCache.put(voucherId, dto);
-            fillLiveStock(dto);
-            return Result.ok(dto);
-        }
 
-        // L3：回源 MySQL，组装券信息 + 秒杀信息
+        String cached;
+        try {
+            cached = stringRedisTemplate.opsForValue().get(redisKey);
+        } catch (Exception e) {
+            log.warn("[缓存降级] 券详情 Redis 读取失败，直接回源数据库, voucherId={}", voucherId, e);
+            return loadSeckillDetailFromDb(voucherId, null);
+        }
+        if (cached != null) {
+            // 命中空值缓存（负缓存）：不存在的 ID 不再穿透到数据库
+            if (cached.isEmpty()) {
+                return null;
+            }
+            return JSONUtil.toBean(cached, SeckillVoucherDetailDTO.class);
+        }
+        return loadSeckillDetailFromDb(voucherId, redisKey);
+    }
+
+    /**
+     * 回源 MySQL，组装券信息 + 秒杀信息，并回填 L2
+     *
+     * @param redisKey 为 null 表示 Redis 当前不可用，跳过回填（仅返回数据）
+     */
+    private SeckillVoucherDetailDTO loadSeckillDetailFromDb(Long voucherId, String redisKey) {
         Voucher voucher = getById(voucherId);
         if (voucher == null) {
             // 缓存空值（负缓存）：查不到的 ID 写短 TTL 空值，降低缓存穿透风险
-            stringRedisTemplate.opsForValue().set(redisKey, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.SECONDS);
-            return Result.fail("优惠券不存在");
+            writeNegativeCache(redisKey);
+            return null;
         }
         SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
         if (seckillVoucher == null) {
-            return Result.fail("该优惠券不是秒杀券");
+            log.debug("[缓存] 券 {} 不是秒杀券，不写缓存", voucherId);
+            return null;
         }
         SeckillVoucherDetailDTO dto = new SeckillVoucherDetailDTO();
         BeanUtil.copyProperties(voucher, dto);
         BeanUtil.copyProperties(seckillVoucher, dto);
 
-        // 回填 L2 + L1，下一个请求直接命中本地内存
-        stringRedisTemplate.opsForValue().set(
-                redisKey,
-                JSONUtil.toJsonStr(dto),
-                RedisConstants.CACHE_SECKILL_VOUCHER_TTL,
-                TimeUnit.SECONDS);
-        localSeckillDetailCache.put(voucherId, dto);
-        fillLiveStock(dto);
-        return Result.ok(dto);
+        if (redisKey != null) {
+            try {
+                stringRedisTemplate.opsForValue().set(redisKey, JSONUtil.toJsonStr(dto),
+                        RedisConstants.CACHE_SECKILL_VOUCHER_TTL, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.warn("[缓存] 券详情回填 Redis 失败（不影响本次返回）, voucherId={}", voucherId, e);
+            }
+        }
+        return dto;
     }
 
-    /** 库存不进缓存：每次从 Redis 资格库存实时读取，读不到就保留 MySQL 快照。 */
+    private void writeNegativeCache(String redisKey) {
+        if (redisKey == null) {
+            return;
+        }
+        try {
+            stringRedisTemplate.opsForValue()
+                    .set(redisKey, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("[缓存] 写入负缓存失败, key={}", redisKey, e);
+        }
+    }
+
+    /**
+     * 库存不进缓存：每次从 Redis 资格库存实时读取，读不到就保留 MySQL 快照。
+     *
+     * <p>这里必须留痕：静默降级会造成「详情页显示有货、点进秒杀却提示库存未初始化」
+     * 这种自相矛盾的用户体验（Redis 重启丢 key 时就会发生），排障时也没有线索。
+     */
     private void fillLiveStock(SeckillVoucherDetailDTO dto) {
-        String liveStock = stringRedisTemplate.opsForValue().get(SECKILL_STOCK_KEY + dto.getId());
+        String stockKey = SECKILL_STOCK_KEY + dto.getId();
+
+        String liveStock;
+        try {
+            liveStock = stringRedisTemplate.opsForValue().get(stockKey);
+        } catch (Exception e) {
+            log.warn("[库存] 读取 Redis 实时库存失败，本次返回数据库快照, voucherId={}", dto.getId(), e);
+            return;
+        }
         if (liveStock != null) {
             dto.setStock(Integer.valueOf(liveStock));
+            return;
         }
+        log.warn("[库存] Redis 实时库存缺失，降级返回数据库快照, voucherId={}, snapshotStock={}",
+                dto.getId(), dto.getStock());
     }
 
     @Override
@@ -152,6 +222,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         seckillVoucherService.save(seckillVoucher);
         //保存秒杀库存的到redis
         stringRedisTemplate.opsForValue().set(SECKILL_STOCK_KEY+voucher.getId(),voucher.getStock().toString());
+        //两级缓存一起失效：本地 Caffeine + Redis
         localVoucherCache.invalidate(voucher.getShopId());
         stringRedisTemplate.delete(RedisConstants.CACHE_VOUCHER_LIST_KEY + voucher.getShopId());
     }
