@@ -13,6 +13,7 @@ import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.service.order.OrderCreateContext;
+import com.hmdp.service.order.OrderCreateOutcome;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.SeckillSwitchManager;
@@ -62,7 +63,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RocketMQTemplate rocketMQTemplate;
     @Resource
-    private Chain<VoucherOrder, OrderCreateContext> orderCreateChain;
+    private Chain<VoucherOrder, OrderCreateContext, OrderCreateOutcome> orderCreateChain;
     @Resource
     private SeckillSwitchManager seckillSwitchManager;
 
@@ -128,14 +129,15 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     /**
      * RocketMQ 消费端事务：责任链依次执行
      * 订单幂等 → 用户锁 → 用户/券幂等 → 条件扣库存 → 落库。
-     * 节点返回 false 表示命中幂等提前结束，抛异常则整条事务回滚。
+     * 节点命中幂等时不接力、直接 return 结果（结果枚举带回编排层并打日志）；抛异常则整条事务回滚。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createVoucherOrder(VoucherOrder voucherOrder) {
         OrderCreateContext context = new OrderCreateContext(voucherOrder);
         try {
-            orderCreateChain.execute(voucherOrder, context);
+            OrderCreateOutcome outcome = orderCreateChain.execute(voucherOrder, context);
+            log.info("订单创建链执行完成 orderId={}, outcome={}", voucherOrder.getId(), outcome);
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {

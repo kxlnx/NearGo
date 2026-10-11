@@ -15,13 +15,13 @@ import javax.annotation.Resource;
  */
 @Slf4j
 @Service
-public class UserVoucherIdempotentNode implements ChainNode<VoucherOrder, OrderCreateContext> {
+public class UserVoucherIdempotentNode extends ChainNode<VoucherOrder, OrderCreateContext, OrderCreateOutcome> {
 
     @Resource
     private VoucherOrderMapper voucherOrderMapper;
 
     @Override
-    public boolean process(VoucherOrder request, OrderCreateContext context) {
+    public OrderCreateOutcome apply(VoucherOrder request, OrderCreateContext context) throws Exception {
         Long duplicated = voucherOrderMapper.selectCount(new LambdaQueryWrapper<VoucherOrder>()
                 .eq(VoucherOrder::getUserId, request.getUserId())
                 .eq(VoucherOrder::getVoucherId, request.getVoucherId())
@@ -29,8 +29,8 @@ public class UserVoucherIdempotentNode implements ChainNode<VoucherOrder, OrderC
         if (duplicated != null && duplicated > 0) {
             log.info("重复消费用户券消息，按用户和券幂等返回 userId={}, voucherId={}",
                     request.getUserId(), request.getVoucherId());
-            return false;
+            return OrderCreateOutcome.SKIPPED_DUPLICATE_USER_VOUCHER;   // 不接力：链到此结束
         }
-        return true;
+        return next(request, context);                                   // 接力
     }
 }

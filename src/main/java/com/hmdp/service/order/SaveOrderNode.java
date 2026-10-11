@@ -8,17 +8,18 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 
 /**
- * 节点五：订单落库，链路终点。
+ * 节点五：订单落库，链的终点。
+ * 终点不调用 next()，直接 return 结果——这个结果会沿调用栈一层层带回编排层。
  */
 @Service
-public class SaveOrderNode implements ChainNode<VoucherOrder, OrderCreateContext> {
+public class SaveOrderNode extends ChainNode<VoucherOrder, OrderCreateContext, OrderCreateOutcome> {
 
     @Resource
     private VoucherOrderMapper voucherOrderMapper;
 
     @Override
-    public boolean process(VoucherOrder request, OrderCreateContext context) {
+    public OrderCreateOutcome apply(VoucherOrder request, OrderCreateContext context) {
         voucherOrderMapper.insert(request);
-        return true;
+        return OrderCreateOutcome.CREATED;                             // 终点产出结果，不再接力
     }
 }
