@@ -1,29 +1,31 @@
-# NearGo 五大问题复盘
+# NearGo 六大问题复盘
 
-> 严格按简历的 **5 条**优化逐条展开，不增加额外问题。
+> 严格按简历的 **6 条**优化逐条展开，不增加额外问题。
 > 每条固定结构：**简历原文 → 这条在说什么 → 完整执行步骤（带具体数据）→ 返回值/行为说明 → 核心代码 → 为什么这么选 → 边界**。
 > 代码位置用 `文件:行号` 标注，与当前源码一致。
-> 本文由《NearGo 七大问题复盘》按简历 5 条**重新编排**：前 4 条把原"七问"按下挂关系合并（内容一字未删），第 5 条是原七问**未覆盖**的新增章节。
+> 本文由《NearGo 七大问题复盘》按简历条目**重新编排**：前 4 条把原"七问"按下挂关系合并（内容一字未删）；**第 5、6 条是原七问未覆盖的新增章节**——第 5 条来自两处结构重构（责任链 + 规则树），第 6 条来自动态开关与灰度切量。
 
-**简历 5 条**
+**简历 6 条**
 
 1. 库存一致性与流量治理：基于 Redis + Lua 原子完成库存校验、预扣与用户去重，结合 MySQL 条件扣库存避免超卖与重复下单；并以滑动窗口限流（IP/用户维度）抵御恶意刷取与突发流量。
 2. 异步削峰与订单状态控制：引入 RocketMQ 解耦秒杀请求与订单落库，以消息幂等保证重复消费不重复建单；并以延迟消息超时关单、乐观锁控制状态流转，解决支付回调与关单的并发竞争。
 3. 故障补偿与最终一致性：基于 XXL-JOB 扫描 Redis 预扣元数据与 MySQL 订单差异，对未落库订单以原订单 ID 重投、对已取消订单释放预扣，异常任务失败重试并落库补偿账本。
 4. 缓存可靠性治理：以 Redis 逻辑过期 + 互斥锁解决热点店铺缓存击穿、缓存空值降低穿透风险；并以 Caffeine + Redis 两级缓存减少热点查询对 Redis 与数据库的压力。
 5. 流程编排与可扩展性重构：订单消费链路重构为责任链（幂等 → 用户锁 → 用户券查重 → 扣库存 → 落库），节点以 `setNext` 显式串链、**装配期静态判环**保证不成环、执行结果枚举化；对账处置重构为规则树（按对象身份判环 + 可配置步数上限）。新增分支无需改动主流程，引擎与节点可独立单测。
+6. 动态开关与灰度切量：以 Redis Hash 存秒杀配置权威值、本地 Caffeine 缓存 5 秒承载入口高频读取，配置变更经 Redisson Topic 广播实现多实例毫秒级生效、并以 TTL 兜底自愈（推 + 拉双保险）；灰度按 userId 稳定哈希在 [0,100) 区间精确切量，同一用户命中稳定；支持不发版秒级急停与按比例放量，配置缺失时按全量开放兜底保持历史行为。
 
 ---
 
 ## 与旧"七问"的对应关系（先看这张表）
 
-| 本文 5 条 | 由旧"七问"的哪些合并而来 | 本文小节 |
+| 本文 6 条 | 由旧"七问"的哪些合并而来 | 本文小节 |
 | --- | --- | --- |
 | 第 1 条 库存一致性与流量治理 | 旧一（库存一致性治理）＋ 旧六（访问流量治理） | 1.1、1.2 |
 | 第 2 条 异步削峰与订单状态控制 | 旧二（异步削峰与消息幂等）＋ 旧四（订单状态并发控制） | 2.1、2.2 |
 | 第 3 条 故障补偿与最终一致性 | 旧五（故障补偿与最终一致性）＋ **新增"补偿账本"小节** | 3.1、3.2 |
 | 第 4 条 缓存可靠性治理 | 旧三（缓存可靠性治理）＋ 旧七（本地缓存与两级缓存治理） | 4.1、4.2 |
-| 第 5 条 流程编排与可扩展性重构 | **旧七问未覆盖，本文新增** | 5.1、5.2、5.3 |
+| 第 5 条 流程编排与可扩展性重构 | **旧七问未覆盖，本文新增**（README 优化八、优化十） | 5.1、5.2、5.3、5.4 |
+| 第 6 条 动态开关与灰度切量 | **旧七问未覆盖，本文新增**（README 优化九） | 6.1 |
 
 > **章节编号规则**：`X.Y` 中 `X` 是简历条目号，`Y` 是该条下的第几个子问题。
 > 正文里所有"见 1.1 第 3 节"这类引用都按这个编号走；小节内部的"第 N 节"仍指**该小节自己**的编号（沿用原文，未改动）。
@@ -31,16 +33,17 @@
 
 ---
 
-## 总览：五条优化不是孤立的，是三条链路 + 一次结构重构
+## 总览：六条优化不是孤立的，是三条链路 + 两次结构升级
 
 > **怎么读这篇**：前 4 条是**沿链路的治理**——写侧秒杀主链路（1.1 → 2.1 → 2.2 → 3.1）、读侧缓存（4.1 / 4.2）、入口限流（1.2）；
-> 第 5 条是**横切的结构重构**——把 2.1 的消费链路、3.1 的对账处置链路从 if-else 改成责任链与规则树，让新增分支不必改主流程、节点可独立单测。
-> 也就是说：1~4 条回答"每个问题怎么解"，第 5 条回答"这些解法怎么组织成可扩展的结构"。
+> 第 5 条是**横切的结构重构**——把 2.1 的消费链路、3.1 的对账处置链路从 if-else 改成责任链与规则树，让新增分支不必改主流程、节点可独立单测；
+> 第 6 条是**横切的发布安全能力**——动态开关 + 稳定哈希灰度切量，决定请求"能不能进来"，它不改变任何业务链路（生效点在 1.2 限流之后、1.1 Lua 预扣之前）。
+> 也就是说：1~4 条回答"每个问题怎么解"，第 5 条回答"这些解法怎么组织成可扩展的结构"，第 6 条回答"这套系统怎么在不发版的前提下被安全地控制"。
 
 
-五条优化围绕三个入口串成三条链路，外加一次横切的结构重构：**秒杀主链路**、**店铺查询链路**、**优惠券查询链路**；其中秒杀主链路又分「正常流程」和「异常兜底」两段。
+六条优化围绕三个入口串成三条链路，外加两次横切的结构升级：**秒杀主链路**、**店铺查询链路**、**优惠券查询链路**；其中秒杀主链路又分「正常流程」和「异常兜底」两段。
 
-### 共享物视角总图（五条为什么不是五个孤立题）
+### 共享物视角总图（六条为什么不是六个孤立题）
 
 ```mermaid
 flowchart TB
@@ -63,7 +66,7 @@ flowchart TB
 
     P6["1.2 限流<br/>RateLimiter + sliding_window.lua"]
 
-    subgraph SHARED["共享物：把五条缝成一张网"]
+    subgraph SHARED["共享物：把六条缝成一张网"]
         SK["共享 Redis Key<br/>seckill:stock / seckill:order / seckill:reservation"]
         SL["共享脚本 seckill_rollback.lua<br/>1.1 发送失败 · 2.2 关单 · 3.1 对账 三处共用"]
         ST["共享状态语义<br/>status：1 待支付 · 2 已支付 · 4 已取消"]
@@ -5479,6 +5482,226 @@ class StockDeductNodeTest {
 代价也要说清：节点之间因此产生了引用耦合（`next`），链头要额外包一层（`Chain`），返回值语义比 `boolean` 复杂；而且 `execute` 不再能像列表版那样"顺手给每个节点统一加日志"——要加只能改基类的 `next()`。
 
 一句话：**列表版简单直接，链表版可自检、可观测**。本项目最终选链表版，是因为除了"新增分支不改主流程"，还想把**装配正确性变成启动期就能证明的事**。
+
+## 六、动态开关与灰度切量
+
+> 简历第 6 条只有一问：**6.1 配置外置 + 推拉双保险**。
+> 这一条不改变任何业务链路，它只决定"请求**能不能进来**"——能力是**不发版秒级急停**与**按 userId 稳定哈希灰度放量**。
+> 生效位置很关键：在限流之后、Lua 预扣**之前**（`VoucherOrderServiceImpl.java:83-86`）。
+
+### 6.1 动态开关与灰度切量：配置外置 + 推拉双保险
+
+#### 面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）
+
+> **① 背景阐述**：秒杀是有明确时间窗的活动，上线、下线、出故障时，"**能不能马上停**"比"停得多干净"更要紧。传统开关写死在 yaml 或代码常量里，改一次要打包、发版、重启，分钟级起步——真出事时等不起。所以我把开关做成**运行时配置**：翻转开关不改一行代码、不重启、不回滚包。
+>
+> **② 问题剖析**：配置一外置，立刻多出三个新问题。第一，**入口性能**：秒杀入口是全链路 QPS 最高的一步，每个请求都去 Redis 读一次配置，等于给最热的地方加一跳网络；第二，**多实例一致性**：配置改了，几十个实例各自有本地缓存，怎么让它同时生效；第三，**兜底**：推送丢了怎么办（实例断连窗口、刚启动还没订阅）、配置本身丢了怎么办。另外灰度还有个隐藏问题：**用随机数放行会让同一个用户一会儿能抢、一会儿不能**——体验不一致、比例会漂，出问题也没法按用户定位。
+>
+> **③ 构思实现**：分三层。**权威值**放 Redis Hash（`config:seckill:dynamic` 的 `enabled` / `cutRange` 两个字段）；**读路径**走本地 Caffeine 缓存（5 秒 TTL、`maximumSize(1)`），所以热路径是内存查表、不打 Redis；**变更路径**是"写 Redis → 本实例立即失效 → Redisson Topic 广播 `topic:seckill:dynamic:changed`"，其他实例在 `@PostConstruct` 里订阅了同一个 Topic，收到就失效本地缓存——**毫秒级生效**。万一广播丢了，本地缓存 5 秒 TTL 到期会自动回源 Redis，**最迟 5 秒全集群自愈**——这就是"推负责快、拉负责最终一致"。灰度用**稳定哈希**：`Math.floorMod(userId, 100) < cutRange`，同一用户永远落在同一侧。配置缺失时按**全量开放**兜底（Fail Open），保持历史行为不变。
+>
+> **④ 复盘总结**：这套东西的价值不在性能，而在"**能不停机地控制流量入口**"。最值钱的是三个设计点：**推 + 拉双保险**（快且最终一致，缺一个都不成立）、**稳定哈希**（可预期、可回归、比例精确）、**Fail Open**（业务开关不能因为配置读不到就把自己关死）。诚实说清代价：多了一个要维护的配置项和一条 Topic，而且"停止"有**毫秒级到 5 秒**的传播窗口，**不是全集群原子停止**；已经进了 MQ 的在途消息也不会被撤销，那部分由消费端和对账兜底。
+
+#### 1. 这条在说什么
+
+- 代码位置：`utils/SeckillSwitchManager.java`（122 行，读写与算法）、`utils/SeckillSwitchCacheSync.java`（34 行，订阅广播失效）、`controller/SeckillConfigController.java`（管理接口，`X-Admin-Token` 鉴权）。
+- 两个能力共用一套机制：**急停** = `enabled=false`；**灰度放量** = `cutRange` 从 100 往下调。
+- 生效点在请求链路的最前面：
+
+| 顺序 | 检查项 | 代码位置 |
+| --- | --- | --- |
+| 1 | 限流（注解 + AOP） | `VoucherOrderController.java:27-28` |
+| 2 | 登录校验 | `VoucherOrderServiceImpl.java:79-82` |
+| 3 | **动态开关 + 灰度** | `VoucherOrderServiceImpl.java:83-86` ← 本条 |
+| 4 | Redis + Lua 预扣 | `VoucherOrderServiceImpl.java:89-95` |
+| 5 | 发 MQ / 消费端落库 | `VoucherOrderServiceImpl.java:107+` |
+
+> 位置为什么重要：判断放在第 4 步（Lua 预扣）**之前**，所以停掉之后**不会再有新的 Redis 预扣、不会再有新的 MQ 消息**。如果放在预扣之后，就会出现"开关已停、预扣还在写、MQ 还在进"的脏流量。
+
+- 与其它章的关系一句话：前五条管"请求进来之后怎么处理"，这一条管"**让不让请求进来**"。
+
+#### 2. 完整执行步骤
+
+**场景 A：急停一次（`enabled` 由 true 改成 false）**
+
+| 步骤 | 谁在做 | 具体动作 | 数据变化 |
+| --- | --- | --- | --- |
+| 1 | 运维 | `POST /seckill/config`，带 `X-Admin-Token`，body `{enabled:false, cutRange:100}` | 无 |
+| 2 | `SeckillConfigController` | 校验参数后调 `seckillSwitchManager.update(false, 100)`（`SeckillConfigController.java:46`） | 无 |
+| 3 | `SeckillSwitchManager.update` | 校验 `cutRange ∈ [0,100]`，越界抛 `IllegalArgumentException`（`SeckillSwitchManager.java:61-63`） | 无 |
+| 4 | 同上 | 写 Redis Hash 两个字段（`:64-65`） | `config:seckill:dynamic` → `enabled=0`、`cutRange=100`（**权威值**） |
+| 5 | 同上 | 本实例 `localCache.invalidateAll()`（`:66`） | 本实例缓存清空 |
+| 6 | 同上 | `RTopic.publish("changed")`（`:69`）；**发送失败只记 warn**（`:70-72`） | Topic `topic:seckill:dynamic:changed` 广播一条消息 |
+| 7 | 其他实例 | `SeckillSwitchCacheSync` 的订阅回调收到消息 → `invalidateLocalCache()`（`SeckillSwitchCacheSync.java:28-30`） | 各实例缓存清空，**毫秒级** |
+| 8 | 兜底路径 | 若第 6 步丢失：本地缓存 `expireAfterWrite(5s)` 到期（`SeckillSwitchManager.java:37-40`） | **最迟 5 秒**后自动失效，下次读回源 Redis |
+| 9 | 下一个秒杀请求 | `rejectReason(userId)` → 本地缓存未命中 → `loadFromRedis()` 读到 `enabled=0`（`:91-99`） | 返回 `"秒杀活动已暂停"` |
+| 10 | 入口 | `Result.fail("秒杀活动已暂停")`（`VoucherOrderServiceImpl.java:84-86`） | **Lua 预扣一次都没执行** |
+
+**场景 B：灰度缩量（`cutRange` 100 → 10，先放 10% 用户进来）**
+
+| 步骤 | 动作 | 结果 |
+| --- | --- | --- |
+| 1 | `update(true, 10)` | Redis 写 `enabled=1`、`cutRange=10`，广播失效 |
+| 2 | 某个 `userId=1007` 的用户请求进来 | `Math.floorMod(1007, 100) = 7 < 10` → 放行，继续走 Lua 预扣 |
+| 3 | 某个 `userId=1055` 的用户请求进来 | `Math.floorMod(1055, 100) = 55 ≥ 10` → 拒绝，返回 `"活动灰度中，暂未开放"` |
+| 4 | 该用户下次再请求 | 结果**仍然是拒绝**（稳定哈希，同一个 userId 永远同一侧） |
+| 5 | 观察无异常，继续放量到 50 → 100 | 每次都是改一个字段 + 广播，**全程不发版** |
+| 6 | 若发现问题要收紧 | 把 `cutRange` 调回 10（或 `enabled=false` 直接急停） |
+
+稳定哈希带来的实际好处：缩量时"被收回"的**永远是同一批用户**（`floorMod` 结果不变），所以可预期、可复现、可针对具体 userId 排查；如果用随机数，用户会"刷新一次能抢、再刷一次不能抢"，统计口径也会漂。
+
+#### 3. 核心代码
+
+**3.1 变更路径：写权威值 + 本实例失效 + 广播**（`SeckillSwitchManager.java:59-73`）
+
+```java
+/** 更新配置：写 Redis（权威值）+ 本实例立即失效 + 广播通知其他实例。 */
+public void update(boolean enabled, int cutRange) {
+    if (cutRange < 0 || cutRange > FULL_CUT_RANGE) {                 // 0~100 之外直接拒绝
+        throw new IllegalArgumentException("cutRange 必须在 0~100 之间：" + cutRange);
+    }
+    stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_ENABLED, enabled ? "1" : "0");
+    stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_CUT_RANGE, String.valueOf(cutRange));
+    invalidateLocalCache();                                          // ① 本实例立即生效
+    // ② 广播失效通知：正常时其他实例毫秒级生效；发送失败也不影响正确性，5 秒 TTL 会兜底
+    try {
+        redissonClient.getTopic(RedisConstants.SECKILL_DYNAMIC_CONFIG_TOPIC).publish("changed");
+    } catch (Exception e) {
+        log.warn("秒杀开关变更通知发送失败，其他实例将在本地缓存过期后生效", e);
+    }
+}
+```
+
+**3.2 读路径：入口只碰内存**（`:42-57` + `:37-40`）
+
+```java
+private final Cache<String, SeckillSwitch> localCache = Caffeine.newBuilder()
+        .maximumSize(1)                                              // 全局只有一个配置键
+        .expireAfterWrite(LOCAL_TTL_SECONDS, TimeUnit.SECONDS)       // 5 秒 TTL：推送丢失时的兜底
+        .build();
+
+/** 返回 null 表示放行，否则返回拒绝原因。 */
+public String rejectReason(Long userId) {
+    SeckillSwitch config = current();
+    if (!config.isEnabled()) {
+        return "秒杀活动已暂停";                                      // 急停
+    }
+    if (!inCutRange(userId, config.getCutRange())) {
+        return "活动灰度中，暂未开放";                                 // 未命中灰度
+    }
+    return null;                                                     // 放行
+}
+
+/** 读取当前配置（本地缓存未命中时回源 Redis）。 */
+public SeckillSwitch current() {
+    return localCache.get(CACHE_KEY, key -> loadFromRedis());
+}
+```
+
+**3.3 稳定哈希切量**（`:80-89`）
+
+```java
+/** 稳定哈希切量：按 userId 映射到 [0, 100)，小于 cutRange 的用户放行。 */
+static boolean inCutRange(Long userId, int cutRange) {
+    if (cutRange >= FULL_CUT_RANGE) {          // 100 = 全量放行
+        return true;
+    }
+    if (cutRange <= 0) {                       // 0 = 全停（但文案是"灰度中"）
+        return false;
+    }
+    return Math.floorMod(userId, FULL_CUT_RANGE) < cutRange;
+}
+```
+
+> **为什么是 `Math.floorMod` 而不是 `%`**：`%` 对负数返回负值（`Long.MIN_VALUE % 100` 是负数），判断会直接失效；`floorMod` 保证结果恒在 `[0,100)`。单测里专门用 `Long.MAX_VALUE` 和边界 0/100 把它钉住。
+
+**3.4 广播订阅与失效**（`SeckillSwitchCacheSync.java:25-33`）
+
+```java
+@PostConstruct
+public void subscribe() {
+    redissonClient.getTopic(RedisConstants.SECKILL_DYNAMIC_CONFIG_TOPIC)
+            .addListener(String.class, (channel, message) -> {
+                seckillSwitchManager.invalidateLocalCache();          // 收到通知就丢本地缓存
+                log.info("收到秒杀开关变更通知，已失效本地缓存 channel={}", channel);
+            });
+}
+```
+
+**3.5 兜底语义：配置缺失按全量开放**（`:91-114`）
+
+```java
+private SeckillSwitch loadFromRedis() {
+    Map<Object, Object> fields = stringRedisTemplate.opsForHash().entries(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY);
+    if (fields.isEmpty()) {
+        // 未配置过：保持默认行为（开放、100% 放量）—— Fail Open
+        return new SeckillSwitch(true, FULL_CUT_RANGE);
+    }
+    boolean enabled = !"0".equals(String.valueOf(fields.get(FIELD_ENABLED)));
+    return new SeckillSwitch(enabled, parseCutRange(fields.get(FIELD_CUT_RANGE)));   // 非法值归一为 100/0
+}
+```
+
+**3.6 管理接口**（`SeckillConfigController.java`）：`GET /seckill/config` 查当前配置（`:34`）、`POST /seckill/config` 更新 `{enabled, cutRange}`（`:46`、`:51`），用 `X-Admin-Token` 做演示级鉴权。
+
+**3.7 单测（4 例 / 6 个断言）**（`SeckillSwitchManagerTest.java`）
+
+| 用例 | 断言了什么 | 位置 |
+| --- | --- | --- |
+| `fullCutRangeAllowsEveryone` | `inCutRange(1,100)=true`；**`inCutRange(Long.MAX_VALUE,100)=true`**（负数取模边界） | `:21-25` |
+| `zeroCutRangeAllowsNobody` | `inCutRange(1,0)=false` | `:27-30` |
+| `halfCutRangeIsStableAndBounded` | userId 1~100 用 50% 切量 → **恰好放行 50 个**；同一用户重复判断结果稳定 | `:32-44` |
+| `invalidateLocalCacheForcesReloadFromRedis` | 首次读回源 Redis → 再读命中本地缓存（`verify times(1)`）→ **失效后再读重新回源**（`times(2)`） | `:46-71` |
+
+> 最后一条最值钱：它直接用 mock 证明了"**本地缓存确实在缓存、失效后确实会回源**"——这正是"推送失效"能生效的前提。
+
+#### 4. 为什么这么设计（选型对比）
+
+**4.1 开关存在哪：五种做法的取舍**
+
+| 方案 | 决定性因素 | 判定 |
+| --- | --- | --- |
+| yaml / 代码常量 | 改一次要打包发版重启，分钟级起步 | 淘汰 |
+| 每次请求读 Redis | 正确性最好，但给最热路径加一跳网络 | 淘汰 |
+| 本地缓存 + 只靠 TTL | 不打 Redis，但生效最慢 = TTL 长度 | 兜底手段 |
+| 本地缓存 + 推送失效 | 毫秒级生效，但**推送丢了就永久不一致** | 不完整 |
+| **本地缓存 + 推送 + TTL 兜底** | 推负责快、拉负责最终一致，缺一不可 | **采用** |
+
+关键一句：**"只靠推送"和"只靠 TTL"都不成立——推解决速度，拉解决正确性。**
+
+**4.2 灰度算法：为什么是稳定取模**
+
+| 方案 | 决定性因素 | 判定 |
+| --- | --- | --- |
+| 随机数放行 | 同一用户一会儿能抢一会儿不能，比例抖动、无法按用户定位 | 淘汰 |
+| 一致性哈希环 | 能稳定，但要维护虚拟节点，切量比例不直观 | 过重 |
+| **`floorMod(userId, 100) < cutRange`** | 稳定、比例精确（50 就是 50）、零依赖、可解释 | **采用** |
+
+**4.3 配置读不到时：Fail Open 还是 Fail Closed**
+
+这一条最容易被追问，因为**同一个项目里两种相反的兜底策略**，各有理由：
+
+| 组件 | 读不到配置 / 依赖异常时 | 方向 | 理由 |
+| --- | --- | --- | --- |
+| **秒杀开关**（本条） | 返回"全量开放"（`SeckillSwitchManager.java:93-95`） | **Fail Open** | 它是**业务开关**：误关 = 整个秒杀被打停（业务中断更糟）；误开的风险由下游 Lua 预扣、条件扣库存兜底 |
+| 限流器 | 脚本返回空即拒绝（`RateLimitAspect.java:50-52`） | **Fail Closed** | 它是**保护后端的闸门**：宁可误伤少量请求，也不能让后端裸奔 |
+
+#### 5. 边界（面试追问）
+
+| 追问 | 怎么答（可直接背） |
+| --- | --- |
+| "秒级急停"到底多快？ | 分三档：**发起变更的那个实例立即**（同一次调用里失效本地缓存）；**其他实例毫秒级**（Redis Pub/Sub 局域网 RTT 个位数毫秒）；**最坏 5 秒**（广播丢失时靠 Caffeine `expireAfterWrite(5s)` 到期自愈）。所以说"秒级"是保守口径，主动讲成"正常毫秒级、最坏 5 秒"更能体现你懂。 |
+| 为什么不用发版/配置中心？ | 发版分钟级起步、还要回滚包，急停等不起；配置中心（Nacos/Apollo）当然能解决，但那要引入一整套服务端与客户端依赖，本项目用 Redis Hash 当权威值 + 一条 Topic 就够了，量级匹配。 |
+| 推送丢了会怎样？ | 不会永久不一致——本地缓存 5 秒 TTL 会到期回源。这就是"推 + 拉"的意义：**推送只为快，正确性由 TTL 保证**。单测 `invalidateLocalCacheForcesReloadFromRedis` 证明了失效后确实会重新回源。 |
+| 多实例会不会出现"有的已停、有的还在放行"？ | 会，但窗口是**毫秒级 ~ 5 秒**。要彻底消除就只能每次请求都读 Redis（牺牲入口性能）或者上分布式协调（过重）。这个不一致窗口在本场景可接受，面试要主动说明"这不是全集群原子停止"。 |
+| 急停能把已经在处理的请求也停掉吗？ | 不能，也不该。急停的语义是"**不再接收新请求**"：判断点在 Lua 预扣**之前**，所以停掉后不会再有新预扣、新 MQ 消息；已经进了 MQ 或在途的订单会由消费端处理完，异常部分交给对账兜底。 |
+| 为什么灰度不用随机数？ | 随机的话同一个用户"刷新一次能抢、再刷一次不能抢"，体验不一致、比例会漂、出问题也没法按 userId 定位。稳定哈希让同一用户永远同一侧，缩量时被收回的永远是同一批人，可预期、可复现。 |
+| `%` 和 `floorMod` 有什么区别，为什么要挑？ | `%` 对负数返回负值：`Long.MIN_VALUE % 100` 是负数，`< cutRange` 判断会失效（本该放行的被拒或反之）。`floorMod` 恒返回 `[0,100)`。单测专门用 `Long.MAX_VALUE` 和 0/100 边界守这条。 |
+| `cutRange=0` 和 `enabled=false` 有什么区别？ | 效果都是全停，但语义与文案不同：`enabled=false` 是"**秒杀活动已暂停**"（运营急停），`cutRange=0` 是"**活动灰度中，暂未开放**"（还没放量）。运维用哪个取决于对用户的口径，别混着用。 |
+| 配置改错了怎么办？ | 改回 Redis 值即可，仍然是秒级生效、不用发版。风险点是"改配置的动作本身"——生产上应给管理接口加真正的鉴权与操作审计（当前是 `X-Admin-Token` 演示级），关键变更双人确认。 |
+| 这套压测验证过吗？ | **没有专门压过**。压测覆盖矩阵里这一项标的是"⚠️ 链路上读配置"——请求路径经过了开关，但没有构造出"急停/切量生效"的压测场景。能说出口径是：配置一致性由 4 个单测覆盖（含 50% 切量恰好放行 50 个、稳定哈希幂等、失效后回源），灰度切量的端到端时效尚未压测——**别把它讲成"压测验证过"**。 |
+| 加了这一层，入口性能有损耗吗？ | 热路径只是查一次 Caffeine（`maximumSize(1)`、5 秒 TTL），是纳秒级内存操作，**不打 Redis**；只有缓存未命中（每实例 5 秒最多一次）才回源 Redis。相比它换来的"不发版控制入口"的能力，这个成本可以忽略。 |
+| 这套能直接复用到别的接口吗？ | 能。`rejectReason(userId)` 是纯函数式的判断（返回 null 放行 / 返回字符串即拒绝原因），把它插到任何入口的最前面即可；灰度维度也能从 `userId` 换成 shopId、activityId 等任何稳定标识。 |
+
 
 ## 附录 A：代码英文 / 术语速查
 

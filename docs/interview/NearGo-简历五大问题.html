@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NearGo 五大问题复盘</title>
+<title>NearGo 六大问题复盘</title>
 <style>
 :root { --sidebar-w: 340px; --line:#e3e6eb; --accent:#2f6feb; }
 * { box-sizing: border-box; }
@@ -54,7 +54,7 @@ main img { max-width:100%; }
 </head>
 <body>
 <nav id="sidebar">
-  <div class="side-title">NearGo 五大问题复盘</div>
+  <div class="side-title">NearGo 六大问题复盘</div>
   <input id="tocFilter" type="text" placeholder="过滤目录…">
   <div class="side-tools">
     <button id="expandToc">展开目录</button>
@@ -62,31 +62,32 @@ main img { max-width:100%; }
     <button id="expandFigs">展开全部图</button>
     <button id="collapseFigs">收起全部图</button>
   </div>
-  <ul id="toc"><li><details open><summary><a class="toc-link" href="#neargo">NearGo 五大问题复盘</a></summary><ul><li><a class="toc-link" href="#_1">与旧&quot;七问&quot;的对应关系（先看这张表）</a></li><li><details open><summary><a class="toc-link" href="#_2">总览：五条优化不是孤立的，是三条链路 + 一次结构重构</a></summary><ul><li><a class="toc-link" href="#_3">共享物视角总图（五条为什么不是五个孤立题）</a></li><li><a class="toc-link" href="#12-11-21-22-31">链路一：秒杀主链路（1.2 → 1.1 → 2.1 → 2.2 → 3.1）</a></li><li><a class="toc-link" href="#41">链路二：店铺查询链路（4.1）</a></li><li><a class="toc-link" href="#42">链路三：优惠券查询链路（4.2）</a></li><li><a class="toc-link" href="#_4">隐藏联系（面试串问的关键）</a></li><li><a class="toc-link" href="#_5">总图</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_6">一、库存一致性与流量治理</a></summary><ul><li><details open><summary><a class="toc-link" href="#11-redis-lua-mysql">1.1 库存一致性治理：Redis + Lua 原子预扣 + MySQL 条件扣减</a></summary><ul><li><a class="toc-link" href="#_7">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-1001-100-2">2. 完整执行步骤（示例：券 1001，初始库存 100，用户 2）</a></li><li><a class="toc-link" href="#3-0-1-2-3">3. 返回值全表（0 / 1 / 2 / 3）</a></li><li><a class="toc-link" href="#4">4. 核心代码</a></li><li><a class="toc-link" href="#5-key">5. 三个 Key 的数据结构</a></li><li><a class="toc-link" href="#6-lua">6. 为什么用 Lua（选型对比）</a></li><li><a class="toc-link" href="#7">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#12-ip">1.2 访问流量治理：滑动窗口限流（IP / 用户维度）</a></summary><ul><li><a class="toc-link" href="#_8">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_1">1. 这条在说什么</a></li><li><a class="toc-link" href="#2">2. 滑动窗口完整执行步骤</a></li><li><a class="toc-link" href="#3">3. 为什么选滑动窗口（选型对比）</a></li><li><a class="toc-link" href="#4_1">4. 核心代码</a></li><li><a class="toc-link" href="#5">5. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_9">二、异步削峰与订单状态控制</a></summary><ul><li><details open><summary><a class="toc-link" href="#21-rocketmq">2.1 异步削峰与消息幂等：RocketMQ 解耦 + 三重幂等</a></summary><ul><li><a class="toc-link" href="#_10">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_2">1. 这条在说什么</a></li><li><a class="toc-link" href="#2_1">2. 完整执行步骤</a></li><li><a class="toc-link" href="#3_1">3. 为什么重复消费不会重复创建订单（对应简历原话）</a></li><li><a class="toc-link" href="#4_2">4. 核心代码</a></li><li><a class="toc-link" href="#5_1">5. 消息说明（普通 / 延迟 / 事务）</a></li><li><a class="toc-link" href="#6-rocketmqkafka-rabbitmq">6. 为什么选 RocketMQ（Kafka / RabbitMQ 对比）</a></li><li><a class="toc-link" href="#7_1">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#22">2.2 订单状态并发控制：延迟消息超时关单 + 乐观锁</a></summary><ul><li><a class="toc-link" href="#_11">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#status">先看：订单状态字典与 status 从哪来</a></li><li><a class="toc-link" href="#1_3">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-1758000000000000001">2. 超时关单完整执行步骤（示例：订单 1758000000000000001）</a></li><li><a class="toc-link" href="#3_2">3. 支付/关单竞争与库存只释放一次</a></li><li><a class="toc-link" href="#4_3">4. 核心代码</a></li><li><a class="toc-link" href="#5-rocketmq">5. 为什么延迟消息用 RocketMQ（选型对比）</a></li><li><a class="toc-link" href="#6">6. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_12">三、故障补偿与最终一致性</a></summary><ul><li><details open><summary><a class="toc-link" href="#31-xxl-job">3.1 XXL-JOB 对账：原单号重投、释放预扣与失败重试</a></summary><ul><li><a class="toc-link" href="#_13">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_4">1. 这条在说什么</a></li><li><details open><summary><a class="toc-link" href="#2-xxl-job-adminneargo">2. XXL-JOB 完整链路：调度中心（Admin）与执行器（NearGo）</a></summary><ul><li><a class="toc-link" href="#21">2.1 两个角色，各管什么</a></li><li><a class="toc-link" href="#22_1">2.2 启动阶段：执行器代码做了什么</a></li><li><a class="toc-link" href="#23-admin-mysql">2.3 配置阶段：Admin 自己的 MySQL 库，以及页面上的任务配置</a></li><li><a class="toc-link" href="#24-admin">2.4 运行阶段：Admin 与执行器的完整交互（全链路时序图）</a></li><li><a class="toc-link" href="#25-admin">2.5 失败重试发生在 Admin，不在执行器里</a></li></ul></details></li><li><a class="toc-link" href="#3-reservation">3. 预扣流水（reservation）字段说明</a></li><li><a class="toc-link" href="#4-reconcile">4. 对账执行步骤（reconcile 内部流程）</a></li><li><a class="toc-link" href="#5_2">5. 核心代码</a></li><li><a class="toc-link" href="#6-xxl-job">6. 为什么用 XXL-JOB（选型对比）</a></li><li><a class="toc-link" href="#7_2">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#32">3.2 补偿账本：把&quot;事后账本&quot;落成一张表（有界重试）</a></summary><ul><li><a class="toc-link" href="#1-xxl-job">1. 这条在说什么（为什么光有 XXL-JOB 定时扫描还不够，还需要一张账本表）</a></li><li><a class="toc-link" href="#2-tb_task_compensation">2. 表结构与字段语义（tb_task_compensation，字段逐个解释，标注来源文件:行号）</a></li><li><a class="toc-link" href="#3-retrying-success-failed-retrycount-nextexecutetime-lasterror">3. 状态机：RETRYING → SUCCESS / FAILED，以及 retryCount / nextExecuteTime / lastError 的作用</a></li><li><a class="toc-link" href="#4-taskcompensationrecorder-node">4. 核心代码（TaskCompensationRecorder 四个方法的真实实现，标注 文件:行号；说明每个方法在哪个 Node 的哪个分支被调用）</a></li><li><a class="toc-link" href="#5_3">5. 有界重试：为什么必须有上限、超过上限会怎样（以真实常量/配置为准，不要编造）</a></li><li><a class="toc-link" href="#6-success-findbybiz">6. 幂等性：重复记账为什么不会写坏（重点：更新条件里对 SUCCESS 的排除、findByBiz 的存在性判断）</a></li><li><a class="toc-link" href="#7_3">7. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_14">四、缓存可靠性治理</a></summary><ul><li><details open><summary><a class="toc-link" href="#41_1">4.1 缓存可靠性治理：逻辑过期 + 互斥锁 + 缓存空值</a></summary><ul><li><a class="toc-link" href="#_15">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_5">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-cacheshop1">2. 逻辑过期完整执行步骤（示例：cache:shop:1）</a></li><li><a class="toc-link" href="#3_3">3. 这里的互斥锁是什么锁</a></li><li><a class="toc-link" href="#4-cacheclientquerywithpassthrough">4. 缓存空值完整执行步骤（CacheClient#queryWithPassThrough）</a></li><li><a class="toc-link" href="#5_4">5. 核心代码</a></li><li><a class="toc-link" href="#6_1">6. 为什么逻辑过期而不是互斥锁方案</a></li><li><a class="toc-link" href="#7_4">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#42-caffeine-redis-mysql">4.2 两级缓存治理：Caffeine + Redis + MySQL 回源</a></summary><ul><li><a class="toc-link" href="#_16">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_6">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-shopid-1">2. 完整执行步骤（示例：shopId = 1）</a></li><li><a class="toc-link" href="#3_4">3. 库存为什么不进缓存（详情页的关键设计）</a></li><li><a class="toc-link" href="#4_4">4. 核心代码</a></li><li><a class="toc-link" href="#5-caffeine-redis">5. 为什么是 Caffeine + Redis 两级（选型对比）</a></li><li><a class="toc-link" href="#6-caffeine-w-tinylfu">6. Caffeine 的淘汰算法：W-TinyLFU（面试常问）</a></li><li><a class="toc-link" href="#7_5">7. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_17">五、流程编排与可扩展性重构</a></summary><ul><li><details open><summary><a class="toc-link" href="#51">5.1 责任链：订单消费链路重构（幂等 → 用户锁 → 扣库存 → 落库）</a></summary><ul><li><a class="toc-link" href="#1_7">1. 这条在说什么</a></li><li><a class="toc-link" href="#2_2">2. 重构前：问题出在哪（真实代码）</a></li><li><a class="toc-link" href="#3_5">3. 重构后：责任链完整执行步骤（带具体执行数据）</a></li><li><a class="toc-link" href="#4_5">4. 核心代码：从骨架到业务（框架可整包搬走）</a></li><li><a class="toc-link" href="#5_5">5. 为什么这么重构（对比表）</a></li><li><a class="toc-link" href="#6_2">6. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#52">5.2 规则树：对账处置重构（含判环与步数上限）</a></summary><ul><li><a class="toc-link" href="#1_8">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-continue">2. 改造前：&quot;一棵藏在 continue 里的树&quot;</a></li><li><a class="toc-link" href="#3_6">3. 改造后：&quot;同一棵树摆到明面上&quot;</a></li><li><a class="toc-link" href="#4_6">4. 引擎核心代码：三个类，可整包搬走</a></li><li><a class="toc-link" href="#5_6">5. 判环与步数上限为什么必须有</a></li><li><a class="toc-link" href="#6_3">6. 行为零变化的证明（真值表 / 对照）</a></li><li><a class="toc-link" href="#7_6">7. 节点侧代码：一棵树只有一处岔路口</a></li><li><a class="toc-link" href="#8">8. 边界与面试追问</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#53">5.3 可测试性：新增分支不改主流程、节点可独立单测</a></summary><ul><li><a class="toc-link" href="#1_9">1. &quot;不改主流程&quot;在两边各指什么</a></li><li><a class="toc-link" href="#2_3">2. 节点为什么能独立单测（结构性原因）</a></li><li><a class="toc-link" href="#3_7">3. 仓库里现有的真实单测</a></li><li><a class="toc-link" href="#4_7">4. 诚实说明：业务节点的单测还没有</a></li><li><a class="toc-link" href="#5_7">5. 这条怎么在面试里收口（一句话版本）</a></li></ul></details></li><li><a class="toc-link" href="#54">5.4 两套怎么选 + 搬迁指南</a></li></ul></details></li><li><a class="toc-link" href="#a">附录 A：代码英文 / 术语速查</a></li></ul></details></li></ul>
+  <ul id="toc"><li><details open><summary><a class="toc-link" href="#neargo">NearGo 六大问题复盘</a></summary><ul><li><a class="toc-link" href="#_1">与旧&quot;七问&quot;的对应关系（先看这张表）</a></li><li><details open><summary><a class="toc-link" href="#_2">总览：六条优化不是孤立的，是三条链路 + 两次结构升级</a></summary><ul><li><a class="toc-link" href="#_3">共享物视角总图（六条为什么不是六个孤立题）</a></li><li><a class="toc-link" href="#12-11-21-22-31">链路一：秒杀主链路（1.2 → 1.1 → 2.1 → 2.2 → 3.1）</a></li><li><a class="toc-link" href="#41">链路二：店铺查询链路（4.1）</a></li><li><a class="toc-link" href="#42">链路三：优惠券查询链路（4.2）</a></li><li><a class="toc-link" href="#_4">隐藏联系（面试串问的关键）</a></li><li><a class="toc-link" href="#_5">总图</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_6">一、库存一致性与流量治理</a></summary><ul><li><details open><summary><a class="toc-link" href="#11-redis-lua-mysql">1.1 库存一致性治理：Redis + Lua 原子预扣 + MySQL 条件扣减</a></summary><ul><li><a class="toc-link" href="#_7">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-1001-100-2">2. 完整执行步骤（示例：券 1001，初始库存 100，用户 2）</a></li><li><a class="toc-link" href="#3-0-1-2-3">3. 返回值全表（0 / 1 / 2 / 3）</a></li><li><a class="toc-link" href="#4">4. 核心代码</a></li><li><a class="toc-link" href="#5-key">5. 三个 Key 的数据结构</a></li><li><a class="toc-link" href="#6-lua">6. 为什么用 Lua（选型对比）</a></li><li><a class="toc-link" href="#7">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#12-ip">1.2 访问流量治理：滑动窗口限流（IP / 用户维度）</a></summary><ul><li><a class="toc-link" href="#_8">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_1">1. 这条在说什么</a></li><li><a class="toc-link" href="#2">2. 滑动窗口完整执行步骤</a></li><li><a class="toc-link" href="#3">3. 为什么选滑动窗口（选型对比）</a></li><li><a class="toc-link" href="#4_1">4. 核心代码</a></li><li><a class="toc-link" href="#5">5. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_9">二、异步削峰与订单状态控制</a></summary><ul><li><details open><summary><a class="toc-link" href="#21-rocketmq">2.1 异步削峰与消息幂等：RocketMQ 解耦 + 三重幂等</a></summary><ul><li><a class="toc-link" href="#_10">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_2">1. 这条在说什么</a></li><li><a class="toc-link" href="#2_1">2. 完整执行步骤</a></li><li><a class="toc-link" href="#3_1">3. 为什么重复消费不会重复创建订单（对应简历原话）</a></li><li><a class="toc-link" href="#4_2">4. 核心代码</a></li><li><a class="toc-link" href="#5_1">5. 消息说明（普通 / 延迟 / 事务）</a></li><li><a class="toc-link" href="#6-rocketmqkafka-rabbitmq">6. 为什么选 RocketMQ（Kafka / RabbitMQ 对比）</a></li><li><a class="toc-link" href="#7_1">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#22">2.2 订单状态并发控制：延迟消息超时关单 + 乐观锁</a></summary><ul><li><a class="toc-link" href="#_11">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#status">先看：订单状态字典与 status 从哪来</a></li><li><a class="toc-link" href="#1_3">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-1758000000000000001">2. 超时关单完整执行步骤（示例：订单 1758000000000000001）</a></li><li><a class="toc-link" href="#3_2">3. 支付/关单竞争与库存只释放一次</a></li><li><a class="toc-link" href="#4_3">4. 核心代码</a></li><li><a class="toc-link" href="#5-rocketmq">5. 为什么延迟消息用 RocketMQ（选型对比）</a></li><li><a class="toc-link" href="#6">6. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_12">三、故障补偿与最终一致性</a></summary><ul><li><details open><summary><a class="toc-link" href="#31-xxl-job">3.1 XXL-JOB 对账：原单号重投、释放预扣与失败重试</a></summary><ul><li><a class="toc-link" href="#_13">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_4">1. 这条在说什么</a></li><li><details open><summary><a class="toc-link" href="#2-xxl-job-adminneargo">2. XXL-JOB 完整链路：调度中心（Admin）与执行器（NearGo）</a></summary><ul><li><a class="toc-link" href="#21">2.1 两个角色，各管什么</a></li><li><a class="toc-link" href="#22_1">2.2 启动阶段：执行器代码做了什么</a></li><li><a class="toc-link" href="#23-admin-mysql">2.3 配置阶段：Admin 自己的 MySQL 库，以及页面上的任务配置</a></li><li><a class="toc-link" href="#24-admin">2.4 运行阶段：Admin 与执行器的完整交互（全链路时序图）</a></li><li><a class="toc-link" href="#25-admin">2.5 失败重试发生在 Admin，不在执行器里</a></li></ul></details></li><li><a class="toc-link" href="#3-reservation">3. 预扣流水（reservation）字段说明</a></li><li><a class="toc-link" href="#4-reconcile">4. 对账执行步骤（reconcile 内部流程）</a></li><li><a class="toc-link" href="#5_2">5. 核心代码</a></li><li><a class="toc-link" href="#6-xxl-job">6. 为什么用 XXL-JOB（选型对比）</a></li><li><a class="toc-link" href="#7_2">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#32">3.2 补偿账本：把&quot;事后账本&quot;落成一张表（有界重试）</a></summary><ul><li><a class="toc-link" href="#1-xxl-job">1. 这条在说什么（为什么光有 XXL-JOB 定时扫描还不够，还需要一张账本表）</a></li><li><a class="toc-link" href="#2-tb_task_compensation">2. 表结构与字段语义（tb_task_compensation，字段逐个解释，标注来源文件:行号）</a></li><li><a class="toc-link" href="#3-retrying-success-failed-retrycount-nextexecutetime-lasterror">3. 状态机：RETRYING → SUCCESS / FAILED，以及 retryCount / nextExecuteTime / lastError 的作用</a></li><li><a class="toc-link" href="#4-taskcompensationrecorder-node">4. 核心代码（TaskCompensationRecorder 四个方法的真实实现，标注 文件:行号；说明每个方法在哪个 Node 的哪个分支被调用）</a></li><li><a class="toc-link" href="#5_3">5. 有界重试：为什么必须有上限、超过上限会怎样（以真实常量/配置为准，不要编造）</a></li><li><a class="toc-link" href="#6-success-findbybiz">6. 幂等性：重复记账为什么不会写坏（重点：更新条件里对 SUCCESS 的排除、findByBiz 的存在性判断）</a></li><li><a class="toc-link" href="#7_3">7. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_14">四、缓存可靠性治理</a></summary><ul><li><details open><summary><a class="toc-link" href="#41_1">4.1 缓存可靠性治理：逻辑过期 + 互斥锁 + 缓存空值</a></summary><ul><li><a class="toc-link" href="#_15">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_5">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-cacheshop1">2. 逻辑过期完整执行步骤（示例：cache:shop:1）</a></li><li><a class="toc-link" href="#3_3">3. 这里的互斥锁是什么锁</a></li><li><a class="toc-link" href="#4-cacheclientquerywithpassthrough">4. 缓存空值完整执行步骤（CacheClient#queryWithPassThrough）</a></li><li><a class="toc-link" href="#5_4">5. 核心代码</a></li><li><a class="toc-link" href="#6_1">6. 为什么逻辑过期而不是互斥锁方案</a></li><li><a class="toc-link" href="#7_4">7. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#42-caffeine-redis-mysql">4.2 两级缓存治理：Caffeine + Redis + MySQL 回源</a></summary><ul><li><a class="toc-link" href="#_16">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_6">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-shopid-1">2. 完整执行步骤（示例：shopId = 1）</a></li><li><a class="toc-link" href="#3_4">3. 库存为什么不进缓存（详情页的关键设计）</a></li><li><a class="toc-link" href="#4_4">4. 核心代码</a></li><li><a class="toc-link" href="#5-caffeine-redis">5. 为什么是 Caffeine + Redis 两级（选型对比）</a></li><li><a class="toc-link" href="#6-caffeine-w-tinylfu">6. Caffeine 的淘汰算法：W-TinyLFU（面试常问）</a></li><li><a class="toc-link" href="#7_5">7. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_17">五、流程编排与可扩展性重构</a></summary><ul><li><details open><summary><a class="toc-link" href="#51">5.1 责任链：订单消费链路重构（幂等 → 用户锁 → 扣库存 → 落库）</a></summary><ul><li><a class="toc-link" href="#1_7">1. 这条在说什么</a></li><li><a class="toc-link" href="#2_2">2. 重构前：问题出在哪（真实代码）</a></li><li><a class="toc-link" href="#3_5">3. 重构后：责任链完整执行步骤（带具体执行数据）</a></li><li><a class="toc-link" href="#4_5">4. 核心代码：从骨架到业务（框架可整包搬走）</a></li><li><a class="toc-link" href="#5_5">5. 为什么这么重构（对比表）</a></li><li><a class="toc-link" href="#6_2">6. 边界（面试追问）</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#52">5.2 规则树：对账处置重构（含判环与步数上限）</a></summary><ul><li><a class="toc-link" href="#1_8">1. 这条在说什么</a></li><li><a class="toc-link" href="#2-continue">2. 改造前：&quot;一棵藏在 continue 里的树&quot;</a></li><li><a class="toc-link" href="#3_6">3. 改造后：&quot;同一棵树摆到明面上&quot;</a></li><li><a class="toc-link" href="#4_6">4. 引擎核心代码：三个类，可整包搬走</a></li><li><a class="toc-link" href="#5_6">5. 判环与步数上限为什么必须有</a></li><li><a class="toc-link" href="#6_3">6. 行为零变化的证明（真值表 / 对照）</a></li><li><a class="toc-link" href="#7_6">7. 节点侧代码：一棵树只有一处岔路口</a></li><li><a class="toc-link" href="#8">8. 边界与面试追问</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#53">5.3 可测试性：新增分支不改主流程、节点可独立单测</a></summary><ul><li><a class="toc-link" href="#1_9">1. &quot;不改主流程&quot;在两边各指什么</a></li><li><a class="toc-link" href="#2_3">2. 节点为什么能独立单测（结构性原因）</a></li><li><a class="toc-link" href="#3_7">3. 仓库里现有的真实单测</a></li><li><a class="toc-link" href="#4_7">4. 诚实说明：业务节点的单测还没有</a></li><li><a class="toc-link" href="#5_7">5. 这条怎么在面试里收口（一句话版本）</a></li></ul></details></li><li><a class="toc-link" href="#54">5.4 两套怎么选 + 搬迁指南</a></li></ul></details></li><li><details open><summary><a class="toc-link" href="#_18">六、动态开关与灰度切量</a></summary><ul><li><details open><summary><a class="toc-link" href="#61">6.1 动态开关与灰度切量：配置外置 + 推拉双保险</a></summary><ul><li><a class="toc-link" href="#_19">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</a></li><li><a class="toc-link" href="#1_10">1. 这条在说什么</a></li><li><a class="toc-link" href="#2_4">2. 完整执行步骤</a></li><li><a class="toc-link" href="#3_8">3. 核心代码</a></li><li><a class="toc-link" href="#4_8">4. 为什么这么设计（选型对比）</a></li><li><a class="toc-link" href="#5_8">5. 边界（面试追问）</a></li></ul></details></li></ul></details></li><li><a class="toc-link" href="#a">附录 A：代码英文 / 术语速查</a></li></ul></details></li></ul>
 </nav>
 <main id="content">
   <div class="doc-head"><div></div><div id="topTools"><button id="topExpandFigs">展开全部图</button><button id="topCollapseFigs">收起全部图</button></div></div>
-  <h1 id="neargo">NearGo 五大问题复盘</h1>
+  <h1 id="neargo">NearGo 六大问题复盘</h1>
 <blockquote>
-<p>严格按简历的 <strong>5 条</strong>优化逐条展开，不增加额外问题。
+<p>严格按简历的 <strong>6 条</strong>优化逐条展开，不增加额外问题。
 每条固定结构：<strong>简历原文 → 这条在说什么 → 完整执行步骤（带具体数据）→ 返回值/行为说明 → 核心代码 → 为什么这么选 → 边界</strong>。
 代码位置用 <code>文件:行号</code> 标注，与当前源码一致。
-本文由《NearGo 七大问题复盘》按简历 5 条<strong>重新编排</strong>：前 4 条把原"七问"按下挂关系合并（内容一字未删），第 5 条是原七问<strong>未覆盖</strong>的新增章节。</p>
+本文由《NearGo 七大问题复盘》按简历条目<strong>重新编排</strong>：前 4 条把原"七问"按下挂关系合并（内容一字未删）；<strong>第 5、6 条是原七问未覆盖的新增章节</strong>——第 5 条来自两处结构重构（责任链 + 规则树），第 6 条来自动态开关与灰度切量。</p>
 </blockquote>
-<p><strong>简历 5 条</strong></p>
+<p><strong>简历 6 条</strong></p>
 <ol>
 <li>库存一致性与流量治理：基于 Redis + Lua 原子完成库存校验、预扣与用户去重，结合 MySQL 条件扣库存避免超卖与重复下单；并以滑动窗口限流（IP/用户维度）抵御恶意刷取与突发流量。</li>
 <li>异步削峰与订单状态控制：引入 RocketMQ 解耦秒杀请求与订单落库，以消息幂等保证重复消费不重复建单；并以延迟消息超时关单、乐观锁控制状态流转，解决支付回调与关单的并发竞争。</li>
 <li>故障补偿与最终一致性：基于 XXL-JOB 扫描 Redis 预扣元数据与 MySQL 订单差异，对未落库订单以原订单 ID 重投、对已取消订单释放预扣，异常任务失败重试并落库补偿账本。</li>
 <li>缓存可靠性治理：以 Redis 逻辑过期 + 互斥锁解决热点店铺缓存击穿、缓存空值降低穿透风险；并以 Caffeine + Redis 两级缓存减少热点查询对 Redis 与数据库的压力。</li>
 <li>流程编排与可扩展性重构：订单消费链路重构为责任链（幂等 → 用户锁 → 用户券查重 → 扣库存 → 落库），节点以 <code>setNext</code> 显式串链、<strong>装配期静态判环</strong>保证不成环、执行结果枚举化；对账处置重构为规则树（按对象身份判环 + 可配置步数上限）。新增分支无需改动主流程，引擎与节点可独立单测。</li>
+<li>动态开关与灰度切量：以 Redis Hash 存秒杀配置权威值、本地 Caffeine 缓存 5 秒承载入口高频读取，配置变更经 Redisson Topic 广播实现多实例毫秒级生效、并以 TTL 兜底自愈（推 + 拉双保险）；灰度按 userId 稳定哈希在 [0,100) 区间精确切量，同一用户命中稳定；支持不发版秒级急停与按比例放量，配置缺失时按全量开放兜底保持历史行为。</li>
 </ol>
 <hr />
 <h2 id="_1">与旧"七问"的对应关系（先看这张表）</h2>
 <table>
 <thead>
 <tr>
-<th>本文 5 条</th>
+<th>本文 6 条</th>
 <th>由旧"七问"的哪些合并而来</th>
 <th>本文小节</th>
 </tr>
@@ -114,8 +115,13 @@ main img { max-width:100%; }
 </tr>
 <tr>
 <td>第 5 条 流程编排与可扩展性重构</td>
-<td><strong>旧七问未覆盖，本文新增</strong></td>
-<td>5.1、5.2、5.3</td>
+<td><strong>旧七问未覆盖，本文新增</strong>（README 优化八、优化十）</td>
+<td>5.1、5.2、5.3、5.4</td>
+</tr>
+<tr>
+<td>第 6 条 动态开关与灰度切量</td>
+<td><strong>旧七问未覆盖，本文新增</strong>（README 优化九）</td>
+<td>6.1</td>
 </tr>
 </tbody>
 </table>
@@ -125,15 +131,16 @@ main img { max-width:100%; }
 旧文档仍保留在 <code>NearGo-简历六大问题.html</code>，两份可以对照看。</p>
 </blockquote>
 <hr />
-<h2 id="_2">总览：五条优化不是孤立的，是三条链路 + 一次结构重构</h2>
+<h2 id="_2">总览：六条优化不是孤立的，是三条链路 + 两次结构升级</h2>
 <blockquote>
 <p><strong>怎么读这篇</strong>：前 4 条是<strong>沿链路的治理</strong>——写侧秒杀主链路（1.1 → 2.1 → 2.2 → 3.1）、读侧缓存（4.1 / 4.2）、入口限流（1.2）；
-第 5 条是<strong>横切的结构重构</strong>——把 2.1 的消费链路、3.1 的对账处置链路从 if-else 改成责任链与规则树，让新增分支不必改主流程、节点可独立单测。
-也就是说：1~4 条回答"每个问题怎么解"，第 5 条回答"这些解法怎么组织成可扩展的结构"。</p>
+第 5 条是<strong>横切的结构重构</strong>——把 2.1 的消费链路、3.1 的对账处置链路从 if-else 改成责任链与规则树，让新增分支不必改主流程、节点可独立单测；
+第 6 条是<strong>横切的发布安全能力</strong>——动态开关 + 稳定哈希灰度切量，决定请求"能不能进来"，它不改变任何业务链路（生效点在 1.2 限流之后、1.1 Lua 预扣之前）。
+也就是说：1~4 条回答"每个问题怎么解"，第 5 条回答"这些解法怎么组织成可扩展的结构"，第 6 条回答"这套系统怎么在不发版的前提下被安全地控制"。</p>
 </blockquote>
-<p>五条优化围绕三个入口串成三条链路，外加一次横切的结构重构：<strong>秒杀主链路</strong>、<strong>店铺查询链路</strong>、<strong>优惠券查询链路</strong>；其中秒杀主链路又分「正常流程」和「异常兜底」两段。</p>
-<h3 id="_3">共享物视角总图（五条为什么不是五个孤立题）</h3>
-<div class="diagram-block"><details><summary class="diagram-summary">图 1：点击展开 / 收起</summary><div class="mermaid-wrap"><div class="mermaid" data-rendered="0">flowchart TB&#10;    subgraph WRITE[&quot;写侧：秒杀主链路（正常 1.1→2.1→2.2，异常 3.1 兜底）&quot;]&#10;        P1[&quot;1.1 秒杀资格预扣&lt;br/&gt;seckill.lua&quot;]&#10;        P2[&quot;2.1 异步下单落库&lt;br/&gt;RocketMQ 消费端&quot;]&#10;        P4[&quot;2.2 状态机与超时关单&quot;]&#10;        P5[&quot;3.1 XXL-JOB 对账补偿&quot;]&#10;        P1 --&gt;|&quot;MQ 普通消息&quot;| P2&#10;        P2 --&gt;|&quot;MQ 延迟消息&quot;| P4&#10;        P5 -.-&gt;|&quot;未落库 → 原单号重投&quot;| P2&#10;        P5 -.-&gt;|&quot;已取消 → 释放预扣&quot;| P4&#10;        P5 -.-&gt;|&quot;已落库 → 补回一人一单名单&quot;| P1&#10;    end&#10;&#10;    subgraph READ[&quot;读侧：缓存治理（被 1.2 挡在入口）&quot;]&#10;        P3[&quot;4.1 店铺详情缓存&lt;br/&gt;逻辑过期 + 互斥锁 + 空值&quot;]&#10;        P7[&quot;4.2 券列表 / 秒杀详情&lt;br/&gt;Caffeine + Redis 两级&quot;]&#10;    end&#10;&#10;    P6[&quot;1.2 限流&lt;br/&gt;RateLimiter + sliding_window.lua&quot;]&#10;&#10;    subgraph SHARED[&quot;共享物：把五条缝成一张网&quot;]&#10;        SK[&quot;共享 Redis Key&lt;br/&gt;seckill:stock / seckill:order / seckill:reservation&quot;]&#10;        SL[&quot;共享脚本 seckill_rollback.lua&lt;br/&gt;1.1 发送失败 · 2.2 关单 · 3.1 对账 三处共用&quot;]&#10;        ST[&quot;共享状态语义&lt;br/&gt;status：1 待支付 · 2 已支付 · 4 已取消&quot;]&#10;        SPA[&quot;共享一致性套路一&lt;br/&gt;Redis 资格库存 + MySQL 持久库存&quot;]&#10;        SPB[&quot;共享一致性套路二&lt;br/&gt;先改库、再删缓存&quot;]&#10;    end&#10;&#10;    P6 --&gt;|&quot;user 维度 5 次/秒&quot;| P1&#10;    P6 --&gt;|&quot;IP 维度 20 次/秒&quot;| P3&#10;&#10;    P1 ---|&quot;预扣 stock-1、SADD 名单、HSET 流水&quot;| SK&#10;    P4 ---|&quot;关单 stock+1、SREM 名单&quot;| SK&#10;    P5 ---|&quot;释放已取消订单的预扣&quot;| SK&#10;    P7 -.-&gt;|&quot;fillLiveStock 实时读 stock&quot;| SK&#10;&#10;    P1 ---|&quot;发送失败补偿&quot;| SL&#10;    P4 ---|&quot;关单释放&quot;| SL&#10;    P5 ---|&quot;对账释放&quot;| SL&#10;&#10;    P2 ---|&quot;ne(status,4) 幂等&quot;| ST&#10;    P4 ---|&quot;1→2 支付 / 1→4 关单&quot;| ST&#10;    P5 ---|&quot;按状态定修复分支&quot;| ST&#10;&#10;    P1 ---|&quot;资格库存 -1&quot;| SPA&#10;    P2 ---|&quot;持久库存 -1&quot;| SPA&#10;    P4 ---|&quot;归还 +1&quot;| SPA&#10;    P5 ---|&quot;释放 +1&quot;| SPA&#10;&#10;    P3 ---|&quot;update 删 cache:shop&quot;| SPB&#10;    P7 ---|&quot;addSeckillVoucher 删列表缓存&quot;| SPB&#10;</div></div></details><div class="mermaid-src" hidden>flowchart TB&#10;    subgraph WRITE[&quot;写侧：秒杀主链路（正常 1.1→2.1→2.2，异常 3.1 兜底）&quot;]&#10;        P1[&quot;1.1 秒杀资格预扣&lt;br/&gt;seckill.lua&quot;]&#10;        P2[&quot;2.1 异步下单落库&lt;br/&gt;RocketMQ 消费端&quot;]&#10;        P4[&quot;2.2 状态机与超时关单&quot;]&#10;        P5[&quot;3.1 XXL-JOB 对账补偿&quot;]&#10;        P1 --&gt;|&quot;MQ 普通消息&quot;| P2&#10;        P2 --&gt;|&quot;MQ 延迟消息&quot;| P4&#10;        P5 -.-&gt;|&quot;未落库 → 原单号重投&quot;| P2&#10;        P5 -.-&gt;|&quot;已取消 → 释放预扣&quot;| P4&#10;        P5 -.-&gt;|&quot;已落库 → 补回一人一单名单&quot;| P1&#10;    end&#10;&#10;    subgraph READ[&quot;读侧：缓存治理（被 1.2 挡在入口）&quot;]&#10;        P3[&quot;4.1 店铺详情缓存&lt;br/&gt;逻辑过期 + 互斥锁 + 空值&quot;]&#10;        P7[&quot;4.2 券列表 / 秒杀详情&lt;br/&gt;Caffeine + Redis 两级&quot;]&#10;    end&#10;&#10;    P6[&quot;1.2 限流&lt;br/&gt;RateLimiter + sliding_window.lua&quot;]&#10;&#10;    subgraph SHARED[&quot;共享物：把五条缝成一张网&quot;]&#10;        SK[&quot;共享 Redis Key&lt;br/&gt;seckill:stock / seckill:order / seckill:reservation&quot;]&#10;        SL[&quot;共享脚本 seckill_rollback.lua&lt;br/&gt;1.1 发送失败 · 2.2 关单 · 3.1 对账 三处共用&quot;]&#10;        ST[&quot;共享状态语义&lt;br/&gt;status：1 待支付 · 2 已支付 · 4 已取消&quot;]&#10;        SPA[&quot;共享一致性套路一&lt;br/&gt;Redis 资格库存 + MySQL 持久库存&quot;]&#10;        SPB[&quot;共享一致性套路二&lt;br/&gt;先改库、再删缓存&quot;]&#10;    end&#10;&#10;    P6 --&gt;|&quot;user 维度 5 次/秒&quot;| P1&#10;    P6 --&gt;|&quot;IP 维度 20 次/秒&quot;| P3&#10;&#10;    P1 ---|&quot;预扣 stock-1、SADD 名单、HSET 流水&quot;| SK&#10;    P4 ---|&quot;关单 stock+1、SREM 名单&quot;| SK&#10;    P5 ---|&quot;释放已取消订单的预扣&quot;| SK&#10;    P7 -.-&gt;|&quot;fillLiveStock 实时读 stock&quot;| SK&#10;&#10;    P1 ---|&quot;发送失败补偿&quot;| SL&#10;    P4 ---|&quot;关单释放&quot;| SL&#10;    P5 ---|&quot;对账释放&quot;| SL&#10;&#10;    P2 ---|&quot;ne(status,4) 幂等&quot;| ST&#10;    P4 ---|&quot;1→2 支付 / 1→4 关单&quot;| ST&#10;    P5 ---|&quot;按状态定修复分支&quot;| ST&#10;&#10;    P1 ---|&quot;资格库存 -1&quot;| SPA&#10;    P2 ---|&quot;持久库存 -1&quot;| SPA&#10;    P4 ---|&quot;归还 +1&quot;| SPA&#10;    P5 ---|&quot;释放 +1&quot;| SPA&#10;&#10;    P3 ---|&quot;update 删 cache:shop&quot;| SPB&#10;    P7 ---|&quot;addSeckillVoucher 删列表缓存&quot;| SPB&#10;</div></div>
+<p>六条优化围绕三个入口串成三条链路，外加两次横切的结构升级：<strong>秒杀主链路</strong>、<strong>店铺查询链路</strong>、<strong>优惠券查询链路</strong>；其中秒杀主链路又分「正常流程」和「异常兜底」两段。</p>
+<h3 id="_3">共享物视角总图（六条为什么不是六个孤立题）</h3>
+<div class="diagram-block"><details><summary class="diagram-summary">图 1：点击展开 / 收起</summary><div class="mermaid-wrap"><div class="mermaid" data-rendered="0">flowchart TB&#10;    subgraph WRITE[&quot;写侧：秒杀主链路（正常 1.1→2.1→2.2，异常 3.1 兜底）&quot;]&#10;        P1[&quot;1.1 秒杀资格预扣&lt;br/&gt;seckill.lua&quot;]&#10;        P2[&quot;2.1 异步下单落库&lt;br/&gt;RocketMQ 消费端&quot;]&#10;        P4[&quot;2.2 状态机与超时关单&quot;]&#10;        P5[&quot;3.1 XXL-JOB 对账补偿&quot;]&#10;        P1 --&gt;|&quot;MQ 普通消息&quot;| P2&#10;        P2 --&gt;|&quot;MQ 延迟消息&quot;| P4&#10;        P5 -.-&gt;|&quot;未落库 → 原单号重投&quot;| P2&#10;        P5 -.-&gt;|&quot;已取消 → 释放预扣&quot;| P4&#10;        P5 -.-&gt;|&quot;已落库 → 补回一人一单名单&quot;| P1&#10;    end&#10;&#10;    subgraph READ[&quot;读侧：缓存治理（被 1.2 挡在入口）&quot;]&#10;        P3[&quot;4.1 店铺详情缓存&lt;br/&gt;逻辑过期 + 互斥锁 + 空值&quot;]&#10;        P7[&quot;4.2 券列表 / 秒杀详情&lt;br/&gt;Caffeine + Redis 两级&quot;]&#10;    end&#10;&#10;    P6[&quot;1.2 限流&lt;br/&gt;RateLimiter + sliding_window.lua&quot;]&#10;&#10;    subgraph SHARED[&quot;共享物：把六条缝成一张网&quot;]&#10;        SK[&quot;共享 Redis Key&lt;br/&gt;seckill:stock / seckill:order / seckill:reservation&quot;]&#10;        SL[&quot;共享脚本 seckill_rollback.lua&lt;br/&gt;1.1 发送失败 · 2.2 关单 · 3.1 对账 三处共用&quot;]&#10;        ST[&quot;共享状态语义&lt;br/&gt;status：1 待支付 · 2 已支付 · 4 已取消&quot;]&#10;        SPA[&quot;共享一致性套路一&lt;br/&gt;Redis 资格库存 + MySQL 持久库存&quot;]&#10;        SPB[&quot;共享一致性套路二&lt;br/&gt;先改库、再删缓存&quot;]&#10;    end&#10;&#10;    P6 --&gt;|&quot;user 维度 5 次/秒&quot;| P1&#10;    P6 --&gt;|&quot;IP 维度 20 次/秒&quot;| P3&#10;&#10;    P1 ---|&quot;预扣 stock-1、SADD 名单、HSET 流水&quot;| SK&#10;    P4 ---|&quot;关单 stock+1、SREM 名单&quot;| SK&#10;    P5 ---|&quot;释放已取消订单的预扣&quot;| SK&#10;    P7 -.-&gt;|&quot;fillLiveStock 实时读 stock&quot;| SK&#10;&#10;    P1 ---|&quot;发送失败补偿&quot;| SL&#10;    P4 ---|&quot;关单释放&quot;| SL&#10;    P5 ---|&quot;对账释放&quot;| SL&#10;&#10;    P2 ---|&quot;ne(status,4) 幂等&quot;| ST&#10;    P4 ---|&quot;1→2 支付 / 1→4 关单&quot;| ST&#10;    P5 ---|&quot;按状态定修复分支&quot;| ST&#10;&#10;    P1 ---|&quot;资格库存 -1&quot;| SPA&#10;    P2 ---|&quot;持久库存 -1&quot;| SPA&#10;    P4 ---|&quot;归还 +1&quot;| SPA&#10;    P5 ---|&quot;释放 +1&quot;| SPA&#10;&#10;    P3 ---|&quot;update 删 cache:shop&quot;| SPB&#10;    P7 ---|&quot;addSeckillVoucher 删列表缓存&quot;| SPB&#10;</div></div></details><div class="mermaid-src" hidden>flowchart TB&#10;    subgraph WRITE[&quot;写侧：秒杀主链路（正常 1.1→2.1→2.2，异常 3.1 兜底）&quot;]&#10;        P1[&quot;1.1 秒杀资格预扣&lt;br/&gt;seckill.lua&quot;]&#10;        P2[&quot;2.1 异步下单落库&lt;br/&gt;RocketMQ 消费端&quot;]&#10;        P4[&quot;2.2 状态机与超时关单&quot;]&#10;        P5[&quot;3.1 XXL-JOB 对账补偿&quot;]&#10;        P1 --&gt;|&quot;MQ 普通消息&quot;| P2&#10;        P2 --&gt;|&quot;MQ 延迟消息&quot;| P4&#10;        P5 -.-&gt;|&quot;未落库 → 原单号重投&quot;| P2&#10;        P5 -.-&gt;|&quot;已取消 → 释放预扣&quot;| P4&#10;        P5 -.-&gt;|&quot;已落库 → 补回一人一单名单&quot;| P1&#10;    end&#10;&#10;    subgraph READ[&quot;读侧：缓存治理（被 1.2 挡在入口）&quot;]&#10;        P3[&quot;4.1 店铺详情缓存&lt;br/&gt;逻辑过期 + 互斥锁 + 空值&quot;]&#10;        P7[&quot;4.2 券列表 / 秒杀详情&lt;br/&gt;Caffeine + Redis 两级&quot;]&#10;    end&#10;&#10;    P6[&quot;1.2 限流&lt;br/&gt;RateLimiter + sliding_window.lua&quot;]&#10;&#10;    subgraph SHARED[&quot;共享物：把六条缝成一张网&quot;]&#10;        SK[&quot;共享 Redis Key&lt;br/&gt;seckill:stock / seckill:order / seckill:reservation&quot;]&#10;        SL[&quot;共享脚本 seckill_rollback.lua&lt;br/&gt;1.1 发送失败 · 2.2 关单 · 3.1 对账 三处共用&quot;]&#10;        ST[&quot;共享状态语义&lt;br/&gt;status：1 待支付 · 2 已支付 · 4 已取消&quot;]&#10;        SPA[&quot;共享一致性套路一&lt;br/&gt;Redis 资格库存 + MySQL 持久库存&quot;]&#10;        SPB[&quot;共享一致性套路二&lt;br/&gt;先改库、再删缓存&quot;]&#10;    end&#10;&#10;    P6 --&gt;|&quot;user 维度 5 次/秒&quot;| P1&#10;    P6 --&gt;|&quot;IP 维度 20 次/秒&quot;| P3&#10;&#10;    P1 ---|&quot;预扣 stock-1、SADD 名单、HSET 流水&quot;| SK&#10;    P4 ---|&quot;关单 stock+1、SREM 名单&quot;| SK&#10;    P5 ---|&quot;释放已取消订单的预扣&quot;| SK&#10;    P7 -.-&gt;|&quot;fillLiveStock 实时读 stock&quot;| SK&#10;&#10;    P1 ---|&quot;发送失败补偿&quot;| SL&#10;    P4 ---|&quot;关单释放&quot;| SL&#10;    P5 ---|&quot;对账释放&quot;| SL&#10;&#10;    P2 ---|&quot;ne(status,4) 幂等&quot;| ST&#10;    P4 ---|&quot;1→2 支付 / 1→4 关单&quot;| ST&#10;    P5 ---|&quot;按状态定修复分支&quot;| ST&#10;&#10;    P1 ---|&quot;资格库存 -1&quot;| SPA&#10;    P2 ---|&quot;持久库存 -1&quot;| SPA&#10;    P4 ---|&quot;归还 +1&quot;| SPA&#10;    P5 ---|&quot;释放 +1&quot;| SPA&#10;&#10;    P3 ---|&quot;update 删 cache:shop&quot;| SPB&#10;    P7 ---|&quot;addSeckillVoucher 删列表缓存&quot;| SPB&#10;</div></div>
 
 <blockquote>
 <p>读法：实线＝主流程调用，虚线＝兜底 / 跨链路读取；中间一栏是共享物。
@@ -7525,6 +7532,449 @@ class StockDeductNodeTest {
 <p>改成链表版的三个理由：<strong>① 结果可观测</strong>——枚举带回编排层，日志能区分"创建成功"和"两种幂等跳过"；<strong>② 结构可自检</strong>——列表版结构上不可能成环、也就没有"装配正确性"这一说，链表版把风险显式化并用装配期判环挡在启动前；<strong>③ 契约更贴模式</strong>——节点自己知道下一跳，装配处只负责"串"。</p>
 <p>代价也要说清：节点之间因此产生了引用耦合（<code>next</code>），链头要额外包一层（<code>Chain</code>），返回值语义比 <code>boolean</code> 复杂；而且 <code>execute</code> 不再能像列表版那样"顺手给每个节点统一加日志"——要加只能改基类的 <code>next()</code>。</p>
 <p>一句话：<strong>列表版简单直接，链表版可自检、可观测</strong>。本项目最终选链表版，是因为除了"新增分支不改主流程"，还想把<strong>装配正确性变成启动期就能证明的事</strong>。</p>
+<h2 id="_18">六、动态开关与灰度切量</h2>
+<blockquote>
+<p>简历第 6 条只有一问：<strong>6.1 配置外置 + 推拉双保险</strong>。
+这一条不改变任何业务链路，它只决定"请求<strong>能不能进来</strong>"——能力是<strong>不发版秒级急停</strong>与<strong>按 userId 稳定哈希灰度放量</strong>。
+生效位置很关键：在限流之后、Lua 预扣<strong>之前</strong>（<code>VoucherOrderServiceImpl.java:83-86</code>）。</p>
+</blockquote>
+<h3 id="61">6.1 动态开关与灰度切量：配置外置 + 推拉双保险</h3>
+<h4 id="_19">面试话术（四段式：背景 → 剖析 → 构思 → 复盘，可直接背）</h4>
+<blockquote>
+<p><strong>① 背景阐述</strong>：秒杀是有明确时间窗的活动，上线、下线、出故障时，"<strong>能不能马上停</strong>"比"停得多干净"更要紧。传统开关写死在 yaml 或代码常量里，改一次要打包、发版、重启，分钟级起步——真出事时等不起。所以我把开关做成<strong>运行时配置</strong>：翻转开关不改一行代码、不重启、不回滚包。</p>
+<p><strong>② 问题剖析</strong>：配置一外置，立刻多出三个新问题。第一，<strong>入口性能</strong>：秒杀入口是全链路 QPS 最高的一步，每个请求都去 Redis 读一次配置，等于给最热的地方加一跳网络；第二，<strong>多实例一致性</strong>：配置改了，几十个实例各自有本地缓存，怎么让它同时生效；第三，<strong>兜底</strong>：推送丢了怎么办（实例断连窗口、刚启动还没订阅）、配置本身丢了怎么办。另外灰度还有个隐藏问题：<strong>用随机数放行会让同一个用户一会儿能抢、一会儿不能</strong>——体验不一致、比例会漂，出问题也没法按用户定位。</p>
+<p><strong>③ 构思实现</strong>：分三层。<strong>权威值</strong>放 Redis Hash（<code>config:seckill:dynamic</code> 的 <code>enabled</code> / <code>cutRange</code> 两个字段）；<strong>读路径</strong>走本地 Caffeine 缓存（5 秒 TTL、<code>maximumSize(1)</code>），所以热路径是内存查表、不打 Redis；<strong>变更路径</strong>是"写 Redis → 本实例立即失效 → Redisson Topic 广播 <code>topic:seckill:dynamic:changed</code>"，其他实例在 <code>@PostConstruct</code> 里订阅了同一个 Topic，收到就失效本地缓存——<strong>毫秒级生效</strong>。万一广播丢了，本地缓存 5 秒 TTL 到期会自动回源 Redis，<strong>最迟 5 秒全集群自愈</strong>——这就是"推负责快、拉负责最终一致"。灰度用<strong>稳定哈希</strong>：<code>Math.floorMod(userId, 100) &lt; cutRange</code>，同一用户永远落在同一侧。配置缺失时按<strong>全量开放</strong>兜底（Fail Open），保持历史行为不变。</p>
+<p><strong>④ 复盘总结</strong>：这套东西的价值不在性能，而在"<strong>能不停机地控制流量入口</strong>"。最值钱的是三个设计点：<strong>推 + 拉双保险</strong>（快且最终一致，缺一个都不成立）、<strong>稳定哈希</strong>（可预期、可回归、比例精确）、<strong>Fail Open</strong>（业务开关不能因为配置读不到就把自己关死）。诚实说清代价：多了一个要维护的配置项和一条 Topic，而且"停止"有<strong>毫秒级到 5 秒</strong>的传播窗口，<strong>不是全集群原子停止</strong>；已经进了 MQ 的在途消息也不会被撤销，那部分由消费端和对账兜底。</p>
+</blockquote>
+<h4 id="1_10">1. 这条在说什么</h4>
+<ul>
+<li>代码位置：<code>utils/SeckillSwitchManager.java</code>（122 行，读写与算法）、<code>utils/SeckillSwitchCacheSync.java</code>（34 行，订阅广播失效）、<code>controller/SeckillConfigController.java</code>（管理接口，<code>X-Admin-Token</code> 鉴权）。</li>
+<li>两个能力共用一套机制：<strong>急停</strong> = <code>enabled=false</code>；<strong>灰度放量</strong> = <code>cutRange</code> 从 100 往下调。</li>
+<li>生效点在请求链路的最前面：</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>顺序</th>
+<th>检查项</th>
+<th>代码位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>限流（注解 + AOP）</td>
+<td><code>VoucherOrderController.java:27-28</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>登录校验</td>
+<td><code>VoucherOrderServiceImpl.java:79-82</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>动态开关 + 灰度</strong></td>
+<td><code>VoucherOrderServiceImpl.java:83-86</code> ← 本条</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Redis + Lua 预扣</td>
+<td><code>VoucherOrderServiceImpl.java:89-95</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>发 MQ / 消费端落库</td>
+<td><code>VoucherOrderServiceImpl.java:107+</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>位置为什么重要：判断放在第 4 步（Lua 预扣）<strong>之前</strong>，所以停掉之后<strong>不会再有新的 Redis 预扣、不会再有新的 MQ 消息</strong>。如果放在预扣之后，就会出现"开关已停、预扣还在写、MQ 还在进"的脏流量。</p>
+</blockquote>
+<ul>
+<li>与其它章的关系一句话：前五条管"请求进来之后怎么处理"，这一条管"<strong>让不让请求进来</strong>"。</li>
+</ul>
+<h4 id="2_4">2. 完整执行步骤</h4>
+<p><strong>场景 A：急停一次（<code>enabled</code> 由 true 改成 false）</strong></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>谁在做</th>
+<th>具体动作</th>
+<th>数据变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>运维</td>
+<td><code>POST /seckill/config</code>，带 <code>X-Admin-Token</code>，body <code>{enabled:false, cutRange:100}</code></td>
+<td>无</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>SeckillConfigController</code></td>
+<td>校验参数后调 <code>seckillSwitchManager.update(false, 100)</code>（<code>SeckillConfigController.java:46</code>）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>SeckillSwitchManager.update</code></td>
+<td>校验 <code>cutRange ∈ [0,100]</code>，越界抛 <code>IllegalArgumentException</code>（<code>SeckillSwitchManager.java:61-63</code>）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>4</td>
+<td>同上</td>
+<td>写 Redis Hash 两个字段（<code>:64-65</code>）</td>
+<td><code>config:seckill:dynamic</code> → <code>enabled=0</code>、<code>cutRange=100</code>（<strong>权威值</strong>）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>同上</td>
+<td>本实例 <code>localCache.invalidateAll()</code>（<code>:66</code>）</td>
+<td>本实例缓存清空</td>
+</tr>
+<tr>
+<td>6</td>
+<td>同上</td>
+<td><code>RTopic.publish("changed")</code>（<code>:69</code>）；<strong>发送失败只记 warn</strong>（<code>:70-72</code>）</td>
+<td>Topic <code>topic:seckill:dynamic:changed</code> 广播一条消息</td>
+</tr>
+<tr>
+<td>7</td>
+<td>其他实例</td>
+<td><code>SeckillSwitchCacheSync</code> 的订阅回调收到消息 → <code>invalidateLocalCache()</code>（<code>SeckillSwitchCacheSync.java:28-30</code>）</td>
+<td>各实例缓存清空，<strong>毫秒级</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td>兜底路径</td>
+<td>若第 6 步丢失：本地缓存 <code>expireAfterWrite(5s)</code> 到期（<code>SeckillSwitchManager.java:37-40</code>）</td>
+<td><strong>最迟 5 秒</strong>后自动失效，下次读回源 Redis</td>
+</tr>
+<tr>
+<td>9</td>
+<td>下一个秒杀请求</td>
+<td><code>rejectReason(userId)</code> → 本地缓存未命中 → <code>loadFromRedis()</code> 读到 <code>enabled=0</code>（<code>:91-99</code>）</td>
+<td>返回 <code>"秒杀活动已暂停"</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td>入口</td>
+<td><code>Result.fail("秒杀活动已暂停")</code>（<code>VoucherOrderServiceImpl.java:84-86</code>）</td>
+<td><strong>Lua 预扣一次都没执行</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>场景 B：灰度缩量（<code>cutRange</code> 100 → 10，先放 10% 用户进来）</strong></p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>动作</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>update(true, 10)</code></td>
+<td>Redis 写 <code>enabled=1</code>、<code>cutRange=10</code>，广播失效</td>
+</tr>
+<tr>
+<td>2</td>
+<td>某个 <code>userId=1007</code> 的用户请求进来</td>
+<td><code>Math.floorMod(1007, 100) = 7 &lt; 10</code> → 放行，继续走 Lua 预扣</td>
+</tr>
+<tr>
+<td>3</td>
+<td>某个 <code>userId=1055</code> 的用户请求进来</td>
+<td><code>Math.floorMod(1055, 100) = 55 ≥ 10</code> → 拒绝，返回 <code>"活动灰度中，暂未开放"</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>该用户下次再请求</td>
+<td>结果<strong>仍然是拒绝</strong>（稳定哈希，同一个 userId 永远同一侧）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>观察无异常，继续放量到 50 → 100</td>
+<td>每次都是改一个字段 + 广播，<strong>全程不发版</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td>若发现问题要收紧</td>
+<td>把 <code>cutRange</code> 调回 10（或 <code>enabled=false</code> 直接急停）</td>
+</tr>
+</tbody>
+</table>
+<p>稳定哈希带来的实际好处：缩量时"被收回"的<strong>永远是同一批用户</strong>（<code>floorMod</code> 结果不变），所以可预期、可复现、可针对具体 userId 排查；如果用随机数，用户会"刷新一次能抢、再刷一次不能抢"，统计口径也会漂。</p>
+<h4 id="3_8">3. 核心代码</h4>
+<p><strong>3.1 变更路径：写权威值 + 本实例失效 + 广播</strong>（<code>SeckillSwitchManager.java:59-73</code>）</p>
+<pre><code class="language-java">/** 更新配置：写 Redis（权威值）+ 本实例立即失效 + 广播通知其他实例。 */
+public void update(boolean enabled, int cutRange) {
+    if (cutRange &lt; 0 || cutRange &gt; FULL_CUT_RANGE) {                 // 0~100 之外直接拒绝
+        throw new IllegalArgumentException(&quot;cutRange 必须在 0~100 之间：&quot; + cutRange);
+    }
+    stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_ENABLED, enabled ? &quot;1&quot; : &quot;0&quot;);
+    stringRedisTemplate.opsForHash().put(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY, FIELD_CUT_RANGE, String.valueOf(cutRange));
+    invalidateLocalCache();                                          // ① 本实例立即生效
+    // ② 广播失效通知：正常时其他实例毫秒级生效；发送失败也不影响正确性，5 秒 TTL 会兜底
+    try {
+        redissonClient.getTopic(RedisConstants.SECKILL_DYNAMIC_CONFIG_TOPIC).publish(&quot;changed&quot;);
+    } catch (Exception e) {
+        log.warn(&quot;秒杀开关变更通知发送失败，其他实例将在本地缓存过期后生效&quot;, e);
+    }
+}
+</code></pre>
+<p><strong>3.2 读路径：入口只碰内存</strong>（<code>:42-57</code> + <code>:37-40</code>）</p>
+<pre><code class="language-java">private final Cache&lt;String, SeckillSwitch&gt; localCache = Caffeine.newBuilder()
+        .maximumSize(1)                                              // 全局只有一个配置键
+        .expireAfterWrite(LOCAL_TTL_SECONDS, TimeUnit.SECONDS)       // 5 秒 TTL：推送丢失时的兜底
+        .build();
+
+/** 返回 null 表示放行，否则返回拒绝原因。 */
+public String rejectReason(Long userId) {
+    SeckillSwitch config = current();
+    if (!config.isEnabled()) {
+        return &quot;秒杀活动已暂停&quot;;                                      // 急停
+    }
+    if (!inCutRange(userId, config.getCutRange())) {
+        return &quot;活动灰度中，暂未开放&quot;;                                 // 未命中灰度
+    }
+    return null;                                                     // 放行
+}
+
+/** 读取当前配置（本地缓存未命中时回源 Redis）。 */
+public SeckillSwitch current() {
+    return localCache.get(CACHE_KEY, key -&gt; loadFromRedis());
+}
+</code></pre>
+<p><strong>3.3 稳定哈希切量</strong>（<code>:80-89</code>）</p>
+<pre><code class="language-java">/** 稳定哈希切量：按 userId 映射到 [0, 100)，小于 cutRange 的用户放行。 */
+static boolean inCutRange(Long userId, int cutRange) {
+    if (cutRange &gt;= FULL_CUT_RANGE) {          // 100 = 全量放行
+        return true;
+    }
+    if (cutRange &lt;= 0) {                       // 0 = 全停（但文案是&quot;灰度中&quot;）
+        return false;
+    }
+    return Math.floorMod(userId, FULL_CUT_RANGE) &lt; cutRange;
+}
+</code></pre>
+<blockquote>
+<p><strong>为什么是 <code>Math.floorMod</code> 而不是 <code>%</code></strong>：<code>%</code> 对负数返回负值（<code>Long.MIN_VALUE % 100</code> 是负数），判断会直接失效；<code>floorMod</code> 保证结果恒在 <code>[0,100)</code>。单测里专门用 <code>Long.MAX_VALUE</code> 和边界 0/100 把它钉住。</p>
+</blockquote>
+<p><strong>3.4 广播订阅与失效</strong>（<code>SeckillSwitchCacheSync.java:25-33</code>）</p>
+<pre><code class="language-java">@PostConstruct
+public void subscribe() {
+    redissonClient.getTopic(RedisConstants.SECKILL_DYNAMIC_CONFIG_TOPIC)
+            .addListener(String.class, (channel, message) -&gt; {
+                seckillSwitchManager.invalidateLocalCache();          // 收到通知就丢本地缓存
+                log.info(&quot;收到秒杀开关变更通知，已失效本地缓存 channel={}&quot;, channel);
+            });
+}
+</code></pre>
+<p><strong>3.5 兜底语义：配置缺失按全量开放</strong>（<code>:91-114</code>）</p>
+<pre><code class="language-java">private SeckillSwitch loadFromRedis() {
+    Map&lt;Object, Object&gt; fields = stringRedisTemplate.opsForHash().entries(RedisConstants.SECKILL_DYNAMIC_CONFIG_KEY);
+    if (fields.isEmpty()) {
+        // 未配置过：保持默认行为（开放、100% 放量）—— Fail Open
+        return new SeckillSwitch(true, FULL_CUT_RANGE);
+    }
+    boolean enabled = !&quot;0&quot;.equals(String.valueOf(fields.get(FIELD_ENABLED)));
+    return new SeckillSwitch(enabled, parseCutRange(fields.get(FIELD_CUT_RANGE)));   // 非法值归一为 100/0
+}
+</code></pre>
+<p><strong>3.6 管理接口</strong>（<code>SeckillConfigController.java</code>）：<code>GET /seckill/config</code> 查当前配置（<code>:34</code>）、<code>POST /seckill/config</code> 更新 <code>{enabled, cutRange}</code>（<code>:46</code>、<code>:51</code>），用 <code>X-Admin-Token</code> 做演示级鉴权。</p>
+<p><strong>3.7 单测（4 例 / 6 个断言）</strong>（<code>SeckillSwitchManagerTest.java</code>）</p>
+<table>
+<thead>
+<tr>
+<th>用例</th>
+<th>断言了什么</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fullCutRangeAllowsEveryone</code></td>
+<td><code>inCutRange(1,100)=true</code>；<strong><code>inCutRange(Long.MAX_VALUE,100)=true</code></strong>（负数取模边界）</td>
+<td><code>:21-25</code></td>
+</tr>
+<tr>
+<td><code>zeroCutRangeAllowsNobody</code></td>
+<td><code>inCutRange(1,0)=false</code></td>
+<td><code>:27-30</code></td>
+</tr>
+<tr>
+<td><code>halfCutRangeIsStableAndBounded</code></td>
+<td>userId 1~100 用 50% 切量 → <strong>恰好放行 50 个</strong>；同一用户重复判断结果稳定</td>
+<td><code>:32-44</code></td>
+</tr>
+<tr>
+<td><code>invalidateLocalCacheForcesReloadFromRedis</code></td>
+<td>首次读回源 Redis → 再读命中本地缓存（<code>verify times(1)</code>）→ <strong>失效后再读重新回源</strong>（<code>times(2)</code>）</td>
+<td><code>:46-71</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>最后一条最值钱：它直接用 mock 证明了"<strong>本地缓存确实在缓存、失效后确实会回源</strong>"——这正是"推送失效"能生效的前提。</p>
+</blockquote>
+<h4 id="4_8">4. 为什么这么设计（选型对比）</h4>
+<p><strong>4.1 开关存在哪：五种做法的取舍</strong></p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>决定性因素</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>yaml / 代码常量</td>
+<td>改一次要打包发版重启，分钟级起步</td>
+<td>淘汰</td>
+</tr>
+<tr>
+<td>每次请求读 Redis</td>
+<td>正确性最好，但给最热路径加一跳网络</td>
+<td>淘汰</td>
+</tr>
+<tr>
+<td>本地缓存 + 只靠 TTL</td>
+<td>不打 Redis，但生效最慢 = TTL 长度</td>
+<td>兜底手段</td>
+</tr>
+<tr>
+<td>本地缓存 + 推送失效</td>
+<td>毫秒级生效，但<strong>推送丢了就永久不一致</strong></td>
+<td>不完整</td>
+</tr>
+<tr>
+<td><strong>本地缓存 + 推送 + TTL 兜底</strong></td>
+<td>推负责快、拉负责最终一致，缺一不可</td>
+<td><strong>采用</strong></td>
+</tr>
+</tbody>
+</table>
+<p>关键一句：<strong>"只靠推送"和"只靠 TTL"都不成立——推解决速度，拉解决正确性。</strong></p>
+<p><strong>4.2 灰度算法：为什么是稳定取模</strong></p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>决定性因素</th>
+<th>判定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>随机数放行</td>
+<td>同一用户一会儿能抢一会儿不能，比例抖动、无法按用户定位</td>
+<td>淘汰</td>
+</tr>
+<tr>
+<td>一致性哈希环</td>
+<td>能稳定，但要维护虚拟节点，切量比例不直观</td>
+<td>过重</td>
+</tr>
+<tr>
+<td><strong><code>floorMod(userId, 100) &lt; cutRange</code></strong></td>
+<td>稳定、比例精确（50 就是 50）、零依赖、可解释</td>
+<td><strong>采用</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>4.3 配置读不到时：Fail Open 还是 Fail Closed</strong></p>
+<p>这一条最容易被追问，因为<strong>同一个项目里两种相反的兜底策略</strong>，各有理由：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>读不到配置 / 依赖异常时</th>
+<th>方向</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>秒杀开关</strong>（本条）</td>
+<td>返回"全量开放"（<code>SeckillSwitchManager.java:93-95</code>）</td>
+<td><strong>Fail Open</strong></td>
+<td>它是<strong>业务开关</strong>：误关 = 整个秒杀被打停（业务中断更糟）；误开的风险由下游 Lua 预扣、条件扣库存兜底</td>
+</tr>
+<tr>
+<td>限流器</td>
+<td>脚本返回空即拒绝（<code>RateLimitAspect.java:50-52</code>）</td>
+<td><strong>Fail Closed</strong></td>
+<td>它是<strong>保护后端的闸门</strong>：宁可误伤少量请求，也不能让后端裸奔</td>
+</tr>
+</tbody>
+</table>
+<h4 id="5_8">5. 边界（面试追问）</h4>
+<table>
+<thead>
+<tr>
+<th>追问</th>
+<th>怎么答（可直接背）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"秒级急停"到底多快？</td>
+<td>分三档：<strong>发起变更的那个实例立即</strong>（同一次调用里失效本地缓存）；<strong>其他实例毫秒级</strong>（Redis Pub/Sub 局域网 RTT 个位数毫秒）；<strong>最坏 5 秒</strong>（广播丢失时靠 Caffeine <code>expireAfterWrite(5s)</code> 到期自愈）。所以说"秒级"是保守口径，主动讲成"正常毫秒级、最坏 5 秒"更能体现你懂。</td>
+</tr>
+<tr>
+<td>为什么不用发版/配置中心？</td>
+<td>发版分钟级起步、还要回滚包，急停等不起；配置中心（Nacos/Apollo）当然能解决，但那要引入一整套服务端与客户端依赖，本项目用 Redis Hash 当权威值 + 一条 Topic 就够了，量级匹配。</td>
+</tr>
+<tr>
+<td>推送丢了会怎样？</td>
+<td>不会永久不一致——本地缓存 5 秒 TTL 会到期回源。这就是"推 + 拉"的意义：<strong>推送只为快，正确性由 TTL 保证</strong>。单测 <code>invalidateLocalCacheForcesReloadFromRedis</code> 证明了失效后确实会重新回源。</td>
+</tr>
+<tr>
+<td>多实例会不会出现"有的已停、有的还在放行"？</td>
+<td>会，但窗口是<strong>毫秒级 ~ 5 秒</strong>。要彻底消除就只能每次请求都读 Redis（牺牲入口性能）或者上分布式协调（过重）。这个不一致窗口在本场景可接受，面试要主动说明"这不是全集群原子停止"。</td>
+</tr>
+<tr>
+<td>急停能把已经在处理的请求也停掉吗？</td>
+<td>不能，也不该。急停的语义是"<strong>不再接收新请求</strong>"：判断点在 Lua 预扣<strong>之前</strong>，所以停掉后不会再有新预扣、新 MQ 消息；已经进了 MQ 或在途的订单会由消费端处理完，异常部分交给对账兜底。</td>
+</tr>
+<tr>
+<td>为什么灰度不用随机数？</td>
+<td>随机的话同一个用户"刷新一次能抢、再刷一次不能抢"，体验不一致、比例会漂、出问题也没法按 userId 定位。稳定哈希让同一用户永远同一侧，缩量时被收回的永远是同一批人，可预期、可复现。</td>
+</tr>
+<tr>
+<td><code>%</code> 和 <code>floorMod</code> 有什么区别，为什么要挑？</td>
+<td><code>%</code> 对负数返回负值：<code>Long.MIN_VALUE % 100</code> 是负数，<code>&lt; cutRange</code> 判断会失效（本该放行的被拒或反之）。<code>floorMod</code> 恒返回 <code>[0,100)</code>。单测专门用 <code>Long.MAX_VALUE</code> 和 0/100 边界守这条。</td>
+</tr>
+<tr>
+<td><code>cutRange=0</code> 和 <code>enabled=false</code> 有什么区别？</td>
+<td>效果都是全停，但语义与文案不同：<code>enabled=false</code> 是"<strong>秒杀活动已暂停</strong>"（运营急停），<code>cutRange=0</code> 是"<strong>活动灰度中，暂未开放</strong>"（还没放量）。运维用哪个取决于对用户的口径，别混着用。</td>
+</tr>
+<tr>
+<td>配置改错了怎么办？</td>
+<td>改回 Redis 值即可，仍然是秒级生效、不用发版。风险点是"改配置的动作本身"——生产上应给管理接口加真正的鉴权与操作审计（当前是 <code>X-Admin-Token</code> 演示级），关键变更双人确认。</td>
+</tr>
+<tr>
+<td>这套压测验证过吗？</td>
+<td><strong>没有专门压过</strong>。压测覆盖矩阵里这一项标的是"⚠️ 链路上读配置"——请求路径经过了开关，但没有构造出"急停/切量生效"的压测场景。能说出口径是：配置一致性由 4 个单测覆盖（含 50% 切量恰好放行 50 个、稳定哈希幂等、失效后回源），灰度切量的端到端时效尚未压测——<strong>别把它讲成"压测验证过"</strong>。</td>
+</tr>
+<tr>
+<td>加了这一层，入口性能有损耗吗？</td>
+<td>热路径只是查一次 Caffeine（<code>maximumSize(1)</code>、5 秒 TTL），是纳秒级内存操作，<strong>不打 Redis</strong>；只有缓存未命中（每实例 5 秒最多一次）才回源 Redis。相比它换来的"不发版控制入口"的能力，这个成本可以忽略。</td>
+</tr>
+<tr>
+<td>这套能直接复用到别的接口吗？</td>
+<td>能。<code>rejectReason(userId)</code> 是纯函数式的判断（返回 null 放行 / 返回字符串即拒绝原因），把它插到任何入口的最前面即可；灰度维度也能从 <code>userId</code> 换成 shopId、activityId 等任何稳定标识。</td>
+</tr>
+</tbody>
+</table>
 <h2 id="a">附录 A：代码英文 / 术语速查</h2>
 <p>代码里的类名、方法名都是英文单词（或缩写）拼出来的，看穿它们只需要一张对照表。</p>
 <p><strong>业务名词</strong></p>
